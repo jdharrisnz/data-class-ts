@@ -90,28 +90,20 @@ export class DataClass implements ShapeCarrier<{}> {
       return false
     }
 
-    const keys = Reflect.ownKeys(this[ShapeId])
-    for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i] as keyof this
-
+    return Reflect.ownKeys(this[ShapeId]).every((key) => {
       const hasThis = hasOwn(this, key)
       const hasThat = hasOwn(that, key)
       if (hasThis !== hasThat) return false // One present, one not present
-      if (!hasThis) continue // Nothing to compare
+      if (!hasThis) return true // Both missing, nothing to compare
 
       const thisValue = this[key]
-      const thatValue = (that as this)[key]
+      const thatValue = (that as this)[key as keyof this]
 
-      if (thisValue instanceof DataClass) {
-        if (!thisValue.equals(thatValue)) {
-          return false
-        }
-      } else if (!Object.is(thisValue, thatValue)) {
-        return false
-      }
-    }
-
-    return true
+      return (
+        Object.is(thisValue, thatValue) ||
+        (thisValue instanceof DataClass && thisValue.equals(thatValue))
+      )
+    })
   }
 
   toJSON() {
