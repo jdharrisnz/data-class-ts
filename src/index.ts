@@ -26,7 +26,7 @@ type Simplify<A extends object> =
   { [K in keyof A]: A[K] } extends infer B extends A ? B : never
 
 /**
- * Base class for immutable-ish data classes.
+ * Base class for immutable data classes.
  *
  * The entrypoint is always `DataClass.extend(...)`. `class X extends DataClass`
  * is intentionally not supported.
@@ -38,8 +38,8 @@ type Simplify<A extends object> =
  *
  * ```ts
  * class User extends DataClass.extend("id", "name")<User> {
- *   declare id: string
- *   declare name?: string
+ *   declare readonly id: string
+ *   declare readonly name?: string
  *
  *   rename(name: string): User {
  *     return new User({ ...this.pick(), name })
