@@ -116,6 +116,19 @@ describe("DataClass runtime behavior", () => {
     expect(a.equals({ id: "u_1", name: "Ada" })).toBe(false)
   })
 
+  it("equals() treats NaN as equal via Object.is semantics", () => {
+    class Reading extends DataClass.extend("value")<Reading> {
+      declare value: number
+    }
+
+    const a = new Reading({ value: Number.NaN })
+    const b = new Reading({ value: Number.NaN })
+    const c = new Reading({ value: 1 })
+
+    expect(a.equals(b)).toBe(true)
+    expect(a.equals(c)).toBe(false)
+  })
+
   it("equals() performs deep checks for nested DataClass values", () => {
     class Address extends DataClass.extend("city")<Address> {
       declare city: string
