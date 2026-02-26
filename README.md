@@ -8,17 +8,24 @@ Immutable-first data classes for TypeScript.
 2. Construction
 3. Methods that transform data
 
-...in one place, while still encouraging immutable workflows.
+...in one place, while encouraging immutable workflows.
 
 ## Why this exists
 
-Classes are often great for organizing behavior, but mutable by default.  
-`data-class` keeps class ergonomics while leaning immutable:
+Classes are often used as mutable objects in day-to-day codebases.  
+This library presents a different pattern: treat classes as immutable data
+buckets with ergonomic behavior attached.
+
+For this kind of model, many teams default to `type`/`interface` plus several
+separate pieces (factory functions, helper utilities, ad hoc
+equality/serialization, and update helpers). `data-class` keeps those concerns
+together in one place:
 
 1. You declare keys up front with `extend(...)`.
-2. Constructor assignment is generated for declared keys.
-3. You get built-in helpers like `pick`, `equals`, and `toJSON`.
-4. Declared-key projection acts as a niche guard against accidental excess data.
+2. Constructor assignment is generated from that declaration.
+3. Instance methods define transformation behavior next to the data shape.
+4. Built-ins like `pick`, `equals`, and `toJSON` provide consistent ergonomics.
+5. Declared-key projection gives a niche guard against accidental excess data.
 
 ## Core pattern
 
@@ -45,7 +52,9 @@ Defines declared data keys and returns a constructor base to extend from.
 
 ### `pick()`
 
-Projects declared keys present on the instance to a fresh POJO.
+Projects declared keys present on the instance to a fresh POJO. This helps with
+spreading values from the current instance into a fresh one, while circumventing
+lint warnings about spreading class instances.
 
 ### `equals(value)`
 
