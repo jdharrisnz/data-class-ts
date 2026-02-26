@@ -74,6 +74,44 @@ export class DataClass implements ShapeCarrier<{}> {
   }
 
   /**
+   * Construct a new `this` with updated properties. Safe to use only if you
+   * haven't overridden the constructor (i.e., the constructor still expects
+   * properties of `this`.).
+   */
+  copyWith(patch: { readonly [K in keyof this[ShapeId]]?: this[K] }): this {
+    // @ts-expect-error Rules explained in the TSDoc
+    return new this.constructor({ ...this.pick(), ...patch })
+  }
+
+  /**
+   * Check that some argument is an instance of `this` and that all the declared
+   * keys are strictly equal. If a value is itself an instance of `DataClass`,
+   * will defer to that instance's `equal` method to check deeper.
+   */
+  equals(that: unknown): that is this {
+    if (!(that instanceof this.constructor)) return false
+
+    const keys = Reflect.ownKeys(this[ShapeId])
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i] as keyof this
+      const thisValue = this[key]
+      const thatValue = (that as this)[key]
+      if (
+        (thisValue instanceof DataClass && !thisValue.equals(thatValue)) ||
+        thisValue !== thatValue
+      ) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  toJSON() {
+    return this.pick()
+  }
+
+  /**
    * Create a derived data-class constructor with additional declared fields.
    *
    * Use this as the only class entrypoint: `class User extends
