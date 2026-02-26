@@ -75,20 +75,6 @@ test("ShapeCarrier remains assignable for advanced consumers", () => {
   assertType<ShapeCarrier<{ id: string }>>(user)
 })
 
-test("copyWith() preserves instance type and enforces patch keys", () => {
-  const user = new User({ id: "u_1" })
-  const renamed = user.copyWith({ name: "Ada" })
-
-  assertType<User>(renamed)
-  expectTypeOf(renamed.pick()).toEqualTypeOf<{ id: string; name?: string }>()
-
-  // @ts-expect-error unknown key
-  user.copyWith({ extra: true })
-
-  // @ts-expect-error wrong value type
-  user.copyWith({ id: 123 })
-})
-
 test("toJSON() returns declared data shape", () => {
   const user = new User({ id: "u_1" })
   const json = user.toJSON()

@@ -86,21 +86,6 @@ describe("DataClass runtime behavior", () => {
     expect(picked.id).toBe("u_1")
   })
 
-  it("copyWith() returns a new instance with merged declared properties", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const original = new User({ id: "u_1" })
-    const updated = original.copyWith({ name: "Ada" })
-
-    expect(updated).toBeInstanceOf(User)
-    expect(updated).not.toBe(original)
-    expect(original.pick()).toEqual({ id: "u_1" })
-    expect(updated.pick()).toEqual({ id: "u_1", name: "Ada" })
-  })
-
   it("equals() compares declared primitive values and rejects non-instances", () => {
     class User extends DataClass.extend("id", "name")<User> {
       declare id: string

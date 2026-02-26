@@ -74,16 +74,6 @@ export class DataClass implements ShapeCarrier<{}> {
   }
 
   /**
-   * Construct a new `this` with updated properties. Safe to use only if you
-   * haven't overridden the constructor (i.e., the constructor still expects
-   * properties of `this`).
-   */
-  copyWith(patch: { readonly [K in keyof this[ShapeId]]?: this[K] }): this {
-    // @ts-expect-error Rules explained in the TSDoc
-    return new this.constructor(Object.assign({}, this.pick(), patch))
-  }
-
-  /**
    * Check that some argument is an instance of `this` and that all the declared
    * keys are equal by `Object.is`. If a value is itself an instance of `DataClass`,
    * will defer to that instance's `equals` method to check deeper.
