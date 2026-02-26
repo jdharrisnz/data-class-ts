@@ -101,6 +101,21 @@ describe("DataClass runtime behavior", () => {
     expect(a.equals({ id: "u_1", name: "Ada" })).toBe(false)
   })
 
+  it("equals() requires the same prototype", () => {
+    class Base extends DataClass.extend("id")<Base> {
+      declare id: string
+    }
+    class Child extends Base.extend("name")<Child> {
+      declare name?: string
+    }
+
+    const base = new Base({ id: "u_1" })
+    const child = new Child({ id: "u_1" })
+
+    expect(base.equals(child)).toBe(false)
+    expect(child.equals(base)).toBe(false)
+  })
+
   it("equals() treats NaN as equal via Object.is semantics", () => {
     class Reading extends DataClass.extend("value")<Reading> {
       declare value: number

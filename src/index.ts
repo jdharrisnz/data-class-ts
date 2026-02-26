@@ -57,10 +57,11 @@ export class DataClass implements ShapeCarrier<{}> {
   pick(): { -readonly [K in keyof this[ShapeId]]: this[K] } {
     const out: Record<PropertyKey, unknown> = {}
 
-    const keys = Reflect.ownKeys(this[ShapeId])
+    const keys = Reflect.ownKeys(this[ShapeId]) // All own string + symbol keys
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i] as keyof this
       if (Object.prototype.hasOwnProperty.call(this, key)) {
+        // Preserve optionals
         out[key] = this[key]
       }
     }
@@ -69,13 +70,19 @@ export class DataClass implements ShapeCarrier<{}> {
   }
 
   /**
-   * Check that some argument is an instance of `this` and that all the declared
-   * keys are equal by `Object.is`. If a value is itself an instance of
+   * Check that some argument has the same prototype as `this` and that all the
+   * declared keys are equal by `Object.is`. If a value is itself an instance of
    * `DataClass`, will defer to that instance's `equals` method to check
    * deeper.
    */
   equals(that: unknown): that is this {
-    if (!(that instanceof this.constructor)) return false
+    if (
+      typeof that !== "object" ||
+      that === null ||
+      Object.getPrototypeOf(that) !== Object.getPrototypeOf(this)
+    ) {
+      return false
+    }
 
     const keys = Reflect.ownKeys(this[ShapeId])
     for (let i = 0; i < keys.length; i += 1) {
@@ -109,7 +116,7 @@ export class DataClass implements ShapeCarrier<{}> {
   >(
     this: This & {
       new (
-        props: Readonly<Pick<Instance, keyof Instance[ShapeId]>>,
+        props: Readonly<Pick<Instance, keyof Instance[ShapeId]>>, // Require that the first constructor param has not been changed
         ...rest: Array<any>
       ): Instance
     },
@@ -118,7 +125,9 @@ export class DataClass implements ShapeCarrier<{}> {
     new <Self extends Instance & Partial<Record<K[number], unknown>>>(
       props: Simplify<
         Readonly<
+          // Pick self
           Pick<Self, Extract<keyof Instance[ShapeId] | K[number], keyof Self>> &
+            // Declared-but-untyped keys become required + `never` as an error
             Record<
               Exclude<keyof Instance[ShapeId] | K[number], keyof Self>,
               never
@@ -139,9 +148,11 @@ export class DataClass implements ShapeCarrier<{}> {
           Rest
         : []
       ) {
-        super(props as never, ...rest)
+        super(props as never, ...rest) // Defer base key assignment and rest props
+        // Assign declared props
         for (let i = 0; i < declared.length; i += 1) {
           const key = declared[i] as never
+          // Preserve optionals
           if (Object.prototype.hasOwnProperty.call(props, key)) {
             this[key] = props[key]
           }
@@ -149,18 +160,17 @@ export class DataClass implements ShapeCarrier<{}> {
       }
 
       declare readonly [ShapeId]: {
-        readonly [K_ in keyof Instance[ShapeId] | K[number]]: null
+        readonly [x in keyof Instance[ShapeId] | K[number]]: null
       }
     }
 
     // @ts-expect-error Readonly assignment
-    Derived.prototype[ShapeId] = Object.assign(
-      {},
-      (this.prototype as Instance)[ShapeId],
-      declared.reduce<Record<PropertyKey, null>>((acc, cur) => {
+    Derived.prototype[ShapeId] = declared.reduce<Record<PropertyKey, null>>(
+      (acc, cur) => {
         acc[cur] = null
         return acc
-      }, {}),
+      },
+      Object.assign({}, (this.prototype as Instance)[ShapeId]),
     )
 
     return Derived
