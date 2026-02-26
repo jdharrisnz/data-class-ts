@@ -129,6 +129,24 @@ describe("DataClass runtime behavior", () => {
     expect(a.equals(c)).toBe(false)
   })
 
+  it("equals() distinguishes absent optional keys from present undefined keys", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const absent = new User({ id: "u_1" })
+    const presentUndefinedA = new User({ id: "u_1" })
+    const presentUndefinedB = new User({ id: "u_1" })
+
+    ;(presentUndefinedA as any).name = undefined
+    ;(presentUndefinedB as any).name = undefined
+
+    expect(absent.equals(presentUndefinedA)).toBe(false)
+    expect(presentUndefinedA.equals(absent)).toBe(false)
+    expect(presentUndefinedA.equals(presentUndefinedB)).toBe(true)
+  })
+
   it("equals() performs deep checks for nested DataClass values", () => {
     class Address extends DataClass.extend("city")<Address> {
       declare city: string

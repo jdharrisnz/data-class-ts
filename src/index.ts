@@ -1,3 +1,9 @@
+const hasOwn = <A extends PropertyKey>(
+  self: object,
+  prop: A,
+): self is Record<A, unknown> =>
+  Object.prototype.hasOwnProperty.call(self, prop)
+
 /**
  * Symbol key used to store the declared data-shape marker on a class prototype.
  *
@@ -60,7 +66,7 @@ export class DataClass implements ShapeCarrier<{}> {
     const keys = Reflect.ownKeys(this[ShapeId]) // All own string + symbol keys
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i] as keyof this
-      if (Object.prototype.hasOwnProperty.call(this, key)) {
+      if (hasOwn(this, key)) {
         // Preserve optionals
         out[key] = this[key]
       }
@@ -87,11 +93,22 @@ export class DataClass implements ShapeCarrier<{}> {
     const keys = Reflect.ownKeys(this[ShapeId])
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i] as keyof this
+
+      const hasThis = hasOwn(this, key)
+      const hasThat = hasOwn(that, key)
+      if (hasThis !== hasThat) return false // One present, one not present
+      if (!hasThis) continue // Nothing to compare
+
       const thisValue = this[key]
       const thatValue = (that as this)[key]
+
       if (thisValue instanceof DataClass) {
-        if (!thisValue.equals(thatValue)) return false
-      } else if (!Object.is(thisValue, thatValue)) return false
+        if (!thisValue.equals(thatValue)) {
+          return false
+        }
+      } else if (!Object.is(thisValue, thatValue)) {
+        return false
+      }
     }
 
     return true
@@ -152,10 +169,7 @@ export class DataClass implements ShapeCarrier<{}> {
         // Assign declared props
         for (let i = 0; i < declared.length; i += 1) {
           const key = declared[i] as never
-          // Preserve optionals
-          if (Object.prototype.hasOwnProperty.call(props, key)) {
-            this[key] = props[key]
-          }
+          if (hasOwn(props, key)) this[key] = props[key] // Preserve optionals
         }
       }
 
