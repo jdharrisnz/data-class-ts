@@ -1,16 +1,10 @@
-const hasOwn = <P extends PropertyKey>(
-  self: object,
-  property: P,
-): self is Record<P, unknown> =>
-  Object.prototype.hasOwnProperty.call(self, property)
-
 /**
  * Symbol key used to store the declared data-shape marker on a class prototype.
  *
  * This is part of the public API so advanced consumers can use it for
  * type-level transforms (for example `Pick`/`Omit` against the shape).
  */
-export const ShapeId: unique symbol = Symbol.for("DataClass")
+export const ShapeId: unique symbol = Symbol("DataClass")
 export type ShapeId = typeof ShapeId
 
 /**
@@ -19,11 +13,16 @@ export type ShapeId = typeof ShapeId
  * The runtime value at {@link ShapeId} is a lightweight marker object used for
  * discovery (`pick`) and for preserving field optionality through extension.
  */
-export interface ShapeCarrier<Source extends {}> {
+export interface ShapeCarrier<Source extends object> {
   readonly [ShapeId]: { readonly [K in keyof Source]: null }
 }
 
-type Simplify<A extends {}> =
+/** Like regular Pick, but defaults to `never` instead of `unknown`. */
+type PickOrNever<A extends object, K extends keyof A> = {
+  [P in K]: P extends keyof A ? A[P] : never
+}
+
+type Simplify<A extends object> =
   { [K in keyof A]: A[K] } extends infer B ? B : never
 
 /**
@@ -61,12 +60,16 @@ export class DataClass implements ShapeCarrier<{}> {
    * instances without tripping class-spread linting rules.
    */
   pick(): { -readonly [K in keyof this[ShapeId]]: this[K] } {
-    const keys = Object.keys(this[ShapeId])
     const out: Record<PropertyKey, unknown> = {}
+
+    const keys = Reflect.ownKeys(this[ShapeId])
     for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i]!
-      if (hasOwn(this, key)) out[key] = this[key]
+      const key = keys[i] as keyof this
+      if (Object.prototype.hasOwnProperty.call(this, key)) {
+        out[key] = this[key]
+      }
     }
+
     return out as any
   }
 
@@ -88,8 +91,8 @@ export class DataClass implements ShapeCarrier<{}> {
   ): {
     new <Self extends Instance & Partial<Record<K, unknown>>>(
       props: [ConstructorParameters<This>[0]] extends [never] ?
-        Simplify<Readonly<Pick<Self, K>>>
-      : Simplify<Readonly<Pick<Self, keyof Instance[ShapeId] | K>>>,
+        Simplify<Readonly<PickOrNever<Self, K>>>
+      : Simplify<Readonly<PickOrNever<Self, keyof Instance[ShapeId] | K>>>,
       ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
         Rest
       : []
@@ -109,7 +112,9 @@ export class DataClass implements ShapeCarrier<{}> {
         super(props, ...rest)
         for (let i = 0; i < declared.length; i += 1) {
           const key = declared[i] as never
-          if (hasOwn(props, key)) this[key] = props[key]
+          if (Object.prototype.hasOwnProperty.call(props, key)) {
+            this[key] = props[key]
+          }
         }
       }
 
@@ -118,15 +123,18 @@ export class DataClass implements ShapeCarrier<{}> {
       }
     }
 
-    Object.assign(Derived.prototype, {
-      [ShapeId]: {
-        ...(this.prototype as Instance)[ShapeId],
-        ...Object.fromEntries(declared.map((k) => [k, null])),
-      },
-    })
+    // @ts-expect-error Readonly assignment
+    Derived.prototype[ShapeId] = {
+      ...(this.prototype as Instance)[ShapeId],
+      ...declared.reduce<Record<PropertyKey, null>>((acc, cur) => {
+        acc[cur] = null
+        return acc
+      }, {}),
+    }
 
     return Derived
   }
 }
 
-Object.assign(DataClass.prototype, { [ShapeId]: {} })
+// @ts-expect-error Readonly assignment
+DataClass.prototype[ShapeId] = {}
