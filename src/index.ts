@@ -76,11 +76,11 @@ export class DataClass implements ShapeCarrier<{}> {
   /**
    * Construct a new `this` with updated properties. Safe to use only if you
    * haven't overridden the constructor (i.e., the constructor still expects
-   * properties of `this`.).
+   * properties of `this`).
    */
   copyWith(patch: { readonly [K in keyof this[ShapeId]]?: this[K] }): this {
     // @ts-expect-error Rules explained in the TSDoc
-    return new this.constructor({ ...this.pick(), ...patch })
+    return new this.constructor(Object.assign({}, this.pick(), patch))
   }
 
   /**
@@ -161,13 +161,14 @@ export class DataClass implements ShapeCarrier<{}> {
     }
 
     // @ts-expect-error Readonly assignment
-    Derived.prototype[ShapeId] = {
-      ...(this.prototype as Instance)[ShapeId],
-      ...declared.reduce<Record<PropertyKey, null>>((acc, cur) => {
+    Derived.prototype[ShapeId] = Object.assign(
+      {},
+      (this.prototype as Instance)[ShapeId],
+      declared.reduce<Record<PropertyKey, null>>((acc, cur) => {
         acc[cur] = null
         return acc
       }, {}),
-    }
+    )
 
     return Derived
   }
