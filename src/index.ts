@@ -84,27 +84,29 @@ export class DataClass implements ShapeCarrier<{}> {
   static extend<
     This extends { new (...args: any): any },
     Instance extends DataClass,
-    const K extends PropertyKey,
+    const K extends Array<PropertyKey> = [],
   >(
     this: This & { new (...args: any): Instance },
-    ...declared: Array<K>
+    ...declared: K
   ): {
-    new <Self extends Instance & Partial<Record<K, unknown>>>(
+    new <Self extends Instance & Partial<Record<K[number], unknown>>>(
       props: [ConstructorParameters<This>[0]] extends [never] ?
-        Simplify<Readonly<PickOrNever<Self, K>>>
-      : Simplify<Readonly<PickOrNever<Self, keyof Instance[ShapeId] | K>>>,
+        Simplify<Readonly<PickOrNever<Self, K[number]>>>
+      : Simplify<
+          Readonly<PickOrNever<Self, keyof Instance[ShapeId] | K[number]>>
+        >,
       ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
         Rest
       : []
-    ): ShapeCarrier<Pick<Self, keyof Instance[ShapeId] | K>> & Instance
+    ): ShapeCarrier<Pick<Self, keyof Instance[ShapeId] | K[number]>> & Instance
   } & This {
     const Derived = class<
-      Self extends Instance & Partial<Record<K, unknown>>,
+      Self extends Instance & Partial<Record<K[number], unknown>>,
     > extends this {
       constructor(
         props: [ConstructorParameters<This>[0]] extends [never] ?
-          Readonly<Pick<Self, K>>
-        : Readonly<Pick<Self, keyof Instance[ShapeId] | K>>,
+          Readonly<Pick<Self, K[number]>>
+        : Readonly<Pick<Self, keyof Instance[ShapeId] | K[number]>>,
         ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
           Rest
         : []
@@ -119,7 +121,7 @@ export class DataClass implements ShapeCarrier<{}> {
       }
 
       declare readonly [ShapeId]: {
-        readonly [K_ in keyof Instance[ShapeId] | K]: null
+        readonly [K_ in keyof Instance[ShapeId] | K[number]]: null
       }
     }
 
