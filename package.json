@@ -1,5 +1,5 @@
 {
-  "name": "data-class",
+  "name": "data-class-ts",
   "version": "1.0.0",
   "description": "Immutable-first data classes with declared keys, generated constructors, and ergonomic transforms.",
   "keywords": [
