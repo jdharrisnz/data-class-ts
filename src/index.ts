@@ -86,7 +86,7 @@ export class DataClass implements ShapeCarrier<{}> {
   /**
    * Check that some argument is an instance of `this` and that all the declared
    * keys are strictly equal. If a value is itself an instance of `DataClass`,
-   * will defer to that instance's `equal` method to check deeper.
+   * will defer to that instance's `equals` method to check deeper.
    */
   equals(that: unknown): that is this {
     if (!(that instanceof this.constructor)) return false
@@ -96,12 +96,9 @@ export class DataClass implements ShapeCarrier<{}> {
       const key = keys[i] as keyof this
       const thisValue = this[key]
       const thatValue = (that as this)[key]
-      if (
-        (thisValue instanceof DataClass && !thisValue.equals(thatValue)) ||
-        thisValue !== thatValue
-      ) {
-        return false
-      }
+      if (thisValue instanceof DataClass) {
+        if (!thisValue.equals(thatValue)) return false
+      } else if (thisValue !== thatValue) return false
     }
 
     return true

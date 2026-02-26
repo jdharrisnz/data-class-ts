@@ -85,4 +85,65 @@ describe("DataClass runtime behavior", () => {
     expect(picked[token]).toBe(42)
     expect(picked.id).toBe("u_1")
   })
+
+  it("copyWith() returns a new instance with merged declared properties", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const original = new User({ id: "u_1" })
+    const updated = original.copyWith({ name: "Ada" })
+
+    expect(updated).toBeInstanceOf(User)
+    expect(updated).not.toBe(original)
+    expect(original.pick()).toEqual({ id: "u_1" })
+    expect(updated.pick()).toEqual({ id: "u_1", name: "Ada" })
+  })
+
+  it("equals() compares declared primitive values and rejects non-instances", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const a = new User({ id: "u_1", name: "Ada" })
+    const b = new User({ id: "u_1", name: "Ada" })
+    const c = new User({ id: "u_1", name: "Grace" })
+
+    expect(a.equals(b)).toBe(true)
+    expect(a.equals(c)).toBe(false)
+    expect(a.equals({ id: "u_1", name: "Ada" })).toBe(false)
+  })
+
+  it("equals() performs deep checks for nested DataClass values", () => {
+    class Address extends DataClass.extend("city")<Address> {
+      declare city: string
+    }
+
+    class User extends DataClass.extend("id", "address")<User> {
+      declare id: string
+      declare address: Address
+    }
+
+    const a = new User({ id: "u_1", address: new Address({ city: "NYC" }) })
+    const b = new User({ id: "u_1", address: new Address({ city: "NYC" }) })
+    const c = new User({ id: "u_1", address: new Address({ city: "SF" }) })
+
+    expect(a.equals(b)).toBe(true)
+    expect(a.equals(c)).toBe(false)
+  })
+
+  it("toJSON() serializes only declared fields and integrates with stringify", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const user = new User({ id: "u_1" })
+    ;(user as any).role = "admin"
+
+    expect(user.toJSON()).toEqual({ id: "u_1" })
+    expect(JSON.stringify(user)).toBe('{"id":"u_1"}')
+  })
 })
