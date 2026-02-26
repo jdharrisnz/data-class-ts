@@ -23,7 +23,7 @@ type PickOrNever<A extends object, K extends keyof A> = {
 }
 
 type Simplify<A extends object> =
-  { [K in keyof A]: A[K] } extends infer B ? B : never
+  { [K in keyof A]: A[K] } extends infer B extends A ? B : never
 
 /**
  * Base class for immutable-ish data classes.
