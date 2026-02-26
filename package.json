@@ -18,6 +18,7 @@
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:all": "pnpm run test && pnpm run test:types",
     "test:types": "vitest run --typecheck.only --typecheck.tsconfig test/tsconfig.json"
