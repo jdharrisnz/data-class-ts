@@ -1,10 +1,24 @@
 {
   "name": "data-class",
   "version": "1.0.0",
-  "description": "",
-  "keywords": [],
-  "license": "ISC",
-  "author": "",
+  "description": "Immutable-first data classes with declared keys, generated constructors, and ergonomic transforms.",
+  "keywords": [
+    "typescript",
+    "class",
+    "immutable",
+    "data",
+    "dataclass"
+  ],
+  "homepage": "https://github.com/jdharrisnz/data-class-ts#readme",
+  "bugs": {
+    "url": "https://github.com/jdharrisnz/data-class-ts/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jdharrisnz/data-class-ts.git"
+  },
+  "license": "MIT",
+  "author": "Joshua Harris",
   "type": "module",
   "exports": {
     ".": {
@@ -17,8 +31,17 @@
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "pack:dry": "npm pack --dry-run --cache /tmp/data-class-npm-cache",
+    "prepublishOnly": "pnpm run test:all && pnpm run build && pnpm run pack:dry",
     "test": "vitest run",
     "test:all": "pnpm run test && pnpm run test:types",
     "test:types": "vitest run --typecheck.only --typecheck.tsconfig test/tsconfig.json"
