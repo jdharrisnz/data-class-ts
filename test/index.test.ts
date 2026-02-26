@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { DataClass, ShapeId } from "../src/index"
+import { DataClass, ShapeId } from "../src/index.js"
 
 describe("DataClass runtime behavior", () => {
   it("pick() includes declared own properties and omits undeclared ad-hoc fields", () => {
