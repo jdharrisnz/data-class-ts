@@ -17,11 +17,6 @@ export interface ShapeCarrier<Source extends object> {
   readonly [ShapeId]: { readonly [K in keyof Source]: null }
 }
 
-/** Like regular Pick, but defaults to `never` instead of `unknown`. */
-type PickOrNever<A extends object, K extends keyof A> = {
-  [P in K]: P extends keyof A ? A[P] : never
-}
-
 type Simplify<A extends object> =
   { [K in keyof A]: A[K] } extends infer B extends A ? B : never
 
@@ -75,8 +70,9 @@ export class DataClass implements ShapeCarrier<{}> {
 
   /**
    * Check that some argument is an instance of `this` and that all the declared
-   * keys are equal by `Object.is`. If a value is itself an instance of `DataClass`,
-   * will defer to that instance's `equals` method to check deeper.
+   * keys are equal by `Object.is`. If a value is itself an instance of
+   * `DataClass`, will defer to that instance's `equals` method to check
+   * deeper.
    */
   equals(that: unknown): that is this {
     if (!(that instanceof this.constructor)) return false
@@ -111,15 +107,24 @@ export class DataClass implements ShapeCarrier<{}> {
     Instance extends DataClass,
     const K extends Array<PropertyKey> = [],
   >(
-    this: This & { new (...args: any): Instance },
+    this: This & {
+      new (
+        props: Readonly<Pick<Instance, keyof Instance[ShapeId]>>,
+        ...rest: Array<any>
+      ): Instance
+    },
     ...declared: K
   ): {
     new <Self extends Instance & Partial<Record<K[number], unknown>>>(
-      props: [ConstructorParameters<This>[0]] extends [never] ?
-        Simplify<Readonly<PickOrNever<Self, K[number]>>>
-      : Simplify<
-          Readonly<PickOrNever<Self, keyof Instance[ShapeId] | K[number]>>
-        >,
+      props: Simplify<
+        Readonly<
+          Pick<Self, Extract<keyof Instance[ShapeId] | K[number], keyof Self>> &
+            Record<
+              Exclude<keyof Instance[ShapeId] | K[number], keyof Self>,
+              never
+            >
+        >
+      >,
       ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
         Rest
       : []
@@ -129,14 +134,12 @@ export class DataClass implements ShapeCarrier<{}> {
       Self extends Instance & Partial<Record<K[number], unknown>>,
     > extends this {
       constructor(
-        props: [ConstructorParameters<This>[0]] extends [never] ?
-          Readonly<Pick<Self, K[number]>>
-        : Readonly<Pick<Self, keyof Instance[ShapeId] | K[number]>>,
+        props: Readonly<Pick<Self, keyof Instance[ShapeId] | K[number]>>,
         ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
           Rest
         : []
       ) {
-        super(props, ...rest)
+        super(props as never, ...rest)
         for (let i = 0; i < declared.length; i += 1) {
           const key = declared[i] as never
           if (Object.prototype.hasOwnProperty.call(props, key)) {
