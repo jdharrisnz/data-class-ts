@@ -20,7 +20,7 @@
   "scripts": {
     "test": "vitest run",
     "test:all": "pnpm run test && pnpm run test:types",
-    "test:types": "vitest run --typecheck.only --typecheck.tsconfig test/tsconfig.test.json"
+    "test:types": "vitest run --typecheck.only --typecheck.tsconfig test/tsconfig.json"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
