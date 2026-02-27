@@ -29,6 +29,19 @@ describe("DataClass runtime behavior", () => {
     expect(Reflect.ownKeys(picked)).not.toContain("name")
   })
 
+  it("pick(...keys) projects only selected declared keys", () => {
+    class User extends DataClass.extend("id", "name", "age")<User> {
+      declare id: string
+      declare name?: string
+      declare age: number
+    }
+
+    const user = new User({ id: "u_1", age: 42 })
+
+    expect(user.pick("id")).toEqual({ id: "u_1" })
+    expect(user.pick("name", "age")).toEqual({ age: 42 })
+  })
+
   it("pick() returns a fresh object", () => {
     class User extends DataClass.extend("id")<User> {
       declare id: string
@@ -84,6 +97,104 @@ describe("DataClass runtime behavior", () => {
     expect(keys).toContain(token)
     expect(picked[token]).toBe(42)
     expect(picked.id).toBe("u_1")
+  })
+
+  it("keys() returns all declared keys, including optional keys not present", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const user = new User({ id: "u_1" })
+    const keys = user.keys()
+
+    expect(keys).toContain("id")
+    expect(keys).toContain("name")
+    expect(keys).toHaveLength(2)
+  })
+
+  it("keys() includes symbol declarations", () => {
+    const token = Symbol("token")
+
+    class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
+      declare id: string;
+      declare [token]: number
+    }
+
+    const value = new WithSymbol({ id: "u_1", [token]: 42 })
+    const keys = value.keys()
+
+    expect(keys).toContain("id")
+    expect(keys).toContain(token)
+    expect(keys).toHaveLength(2)
+  })
+
+  it("entries() includes only present declared keys", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const user = new User({ id: "u_1" })
+    const entries = user.entries()
+
+    expect(entries).toEqual([["id", "u_1"]])
+  })
+
+  it("entries() includes declared symbol entries", () => {
+    const token = Symbol("token")
+
+    class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
+      declare id: string;
+      declare [token]: number
+    }
+
+    const value = new WithSymbol({ id: "u_1", [token]: 42 })
+    const entries = value.entries()
+    const tokenEntry = entries.find(([key]) => key === token)
+
+    expect(entries).toContainEqual(["id", "u_1"])
+    expect(tokenEntry).toEqual([token, 42])
+    expect(entries).toHaveLength(2)
+  })
+
+  it("omit(...keys) excludes selected declared keys", () => {
+    class User extends DataClass.extend("id", "name", "age")<User> {
+      declare id: string
+      declare name?: string
+      declare age: number
+    }
+
+    const user = new User({ id: "u_1", name: "Ada", age: 42 })
+
+    expect(user.omit("name")).toEqual({ id: "u_1", age: 42 })
+    expect(user.omit("id", "age")).toEqual({ name: "Ada" })
+  })
+
+  it("omit() with no keys is equivalent to pick()", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const user = new User({ id: "u_1" })
+
+    expect(user.omit()).toEqual(user.pick())
+  })
+
+  it("omit(...keys) supports declared symbol keys", () => {
+    const token = Symbol("token")
+
+    class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
+      declare id: string
+      declare [token]: number
+    }
+
+    const value = new WithSymbol({ id: "u_1", [token]: 42 })
+    const omitted = value.omit(token)
+
+    expect(omitted).toEqual({ id: "u_1" })
+    expect(Reflect.ownKeys(omitted)).not.toContain(token)
   })
 
   it("equals() compares declared primitive values and rejects non-instances", () => {

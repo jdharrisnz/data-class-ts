@@ -24,7 +24,8 @@ together in one place:
 1. You declare keys up front with `extend(...)`.
 2. Constructor assignment is generated from that declaration.
 3. Instance methods define transformation behavior next to the data shape.
-4. Built-ins like `pick`, `equals`, and `toJSON` provide consistent ergonomics.
+4. Strongly-typed built-ins like `keys`, `entries`, `pick`, `omit`, `equals`,
+   and `toJSON` provide consistent ergonomics.
 5. Declared-key projection gives a niche guard against accidental excess data.
 
 ## Core pattern
@@ -52,9 +53,27 @@ Defines declared data keys and returns a constructor base to extend from.
 
 ### `pick()`
 
-Projects declared keys present on the instance to a fresh POJO. This helps with
-spreading values from the current instance into a fresh one, while circumventing
-lint warnings about spreading class instances.
+Projects declared keys present on the instance to a fresh POJO.
+
+1. `pick()` returns all present declared keys.
+2. `pick(...keys)` returns only the selected present declared keys.
+
+This helps with spreading values from the current instance into a fresh one,
+while circumventing lint warnings about spreading class instances.
+
+### `keys()`
+
+Returns all declared keys (string and symbol), including optional keys that
+might not currently be present on the instance.
+
+### `entries()`
+
+Returns `[key, value]` tuples for declared keys that are present on the instance
+(including symbol keys). Absent optional keys are omitted.
+
+### `omit(...keys)`
+
+Returns a POJO of present declared keys excluding the selected keys.
 
 ### `equals(value)`
 

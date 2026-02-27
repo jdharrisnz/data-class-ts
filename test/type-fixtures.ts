@@ -5,7 +5,10 @@ export class User extends DataClass.extend("id", "name")<User> {
   declare name?: string
 }
 
-export class MissingTypedField extends DataClass.extend("id", "name")<MissingTypedField> {
+export class MissingTypedField extends DataClass.extend(
+  "id",
+  "name",
+)<MissingTypedField> {
   declare id: string
 }
 

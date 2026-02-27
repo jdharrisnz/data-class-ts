@@ -26,6 +26,8 @@ export interface ShapeCarrier<Source extends object> {
 type Simplify<A extends object> =
   { [K in keyof A]: A[K] } extends infer B extends A ? B : never
 
+type Mutable<A extends object> = { -readonly [K in keyof A]: A[K] }
+
 /**
  * Base class for immutable data classes.
  *
@@ -55,24 +57,68 @@ export class DataClass implements ShapeCarrier<{}> {
   declare readonly [ShapeId]: {}
 
   /**
+   * Get an array of declared keys for this instance. All keys will be present,
+   * whether the instance's property is optional or not.
+   */
+  keys<This extends DataClass>(this: This): Array<keyof This[ShapeId]> {
+    return Reflect.ownKeys(this[ShapeId]) as any
+  }
+
+  /**
+   * Get entries for declared keys that are present on this instance.
+   *
+   * Optional keys that are currently absent are omitted from the returned
+   * array.
+   */
+  entries<This extends DataClass>(
+    this: This,
+  ): Array<
+    {
+      [K in keyof This[ShapeId]]-?: [K, Required<Pick<This, K>>[K]]
+    }[keyof This[ShapeId]]
+  > {
+    return this.keys()
+      .map((key) => [key, this[key]] as const)
+      .filter(([key]) => hasOwn(this, key)) as any
+  }
+
+  /**
    * Project the declared data fields on `this` into a fresh POJO.
    *
    * This is primarily useful when consumers want to spread data from class
-   * instances without tripping class-spread linting rules.
+   * instances without tripping class-spread linting rules. When keys are
+   * provided, only those declared keys are projected.
    */
-  pick(): { -readonly [K in keyof this[ShapeId]]: this[K] } {
+  pick(): Simplify<Mutable<Pick<this, keyof this[ShapeId]>>>
+  pick<const K extends Array<keyof this[ShapeId]>>(
+    ...keys: K
+  ): Simplify<Mutable<Pick<this, K[number]>>>
+  pick(...picked: Array<keyof this[ShapeId]>) {
     const out: Record<PropertyKey, unknown> = {}
 
-    const keys = Reflect.ownKeys(this[ShapeId]) // All own string + symbol keys
+    const keys =
+      picked.length ?
+        picked // Use input if provided
+      : this.keys() // Otherwise all own string + symbol keys
     for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i] as keyof this
-      if (hasOwn(this, key)) {
-        // Preserve optionals
-        out[key] = this[key]
-      }
+      const key = keys[i]!
+      if (hasOwn(this, key)) out[key] = this[key] // Preserve optionals
     }
 
     return out as any
+  }
+
+  /**
+   * Project declared data while excluding specific keys.
+   *
+   * Optional keys that are absent remain absent in the returned object.
+   */
+  omit<const K extends Array<keyof this[ShapeId]>>(
+    ...keys: K
+  ): Simplify<Mutable<Pick<this, Exclude<keyof this[ShapeId], K[number]>>>> {
+    const exclude = new Set(keys)
+    const include = this.keys().filter((key) => !exclude.has(key))
+    return this.pick(...include)
   }
 
   /**
@@ -90,14 +136,14 @@ export class DataClass implements ShapeCarrier<{}> {
       return false
     }
 
-    return Reflect.ownKeys(this[ShapeId]).every((key) => {
+    return this.keys().every((key) => {
       const hasThis = hasOwn(this, key)
       const hasThat = hasOwn(that, key)
       if (hasThis !== hasThat) return false // One present, one not present
       if (!hasThis) return true // Both missing, nothing to compare
 
       const thisValue = this[key]
-      const thatValue = (that as this)[key as keyof this]
+      const thatValue = (that as this)[key]
 
       return (
         Object.is(thisValue, thatValue) ||
