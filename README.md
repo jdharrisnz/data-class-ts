@@ -6,9 +6,10 @@ Immutable-first data classes for TypeScript.
 
 1. Type shape
 2. Construction
-3. Methods that transform data
+3. Methods to transform that data
 
-...in one place, while encouraging immutable workflows.
+...in one place, while encouraging immutable workflows. Zero dependencies,
+1.25kb minified.
 
 ## Why this exists
 
@@ -79,6 +80,16 @@ Returns a POJO of present declared keys excluding the selected keys.
 
 Compares declared keys using `Object.is()`. For nested `DataClass` values,
 comparison is deep via nested `equals`.
+
+### `diff(that)`
+
+Returns a sparse object describing differences across declared keys.
+
+1. Changed primitive/non-`DataClass` fields are reported as
+   `{ self: value, that: value }`.
+2. Nested `DataClass` fields recurse when both sides share the same prototype.
+3. Optional presence is significant: absent and present-`undefined` are treated
+   as different.
 
 ### `toJSON()`
 

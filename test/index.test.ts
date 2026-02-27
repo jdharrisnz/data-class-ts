@@ -186,7 +186,7 @@ describe("DataClass runtime behavior", () => {
     const token = Symbol("token")
 
     class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-      declare id: string
+      declare id: string;
       declare [token]: number
     }
 
@@ -274,6 +274,84 @@ describe("DataClass runtime behavior", () => {
 
     expect(a.equals(b)).toBe(true)
     expect(a.equals(c)).toBe(false)
+  })
+
+  it("diff() returns only changed primitive keys", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string
+    }
+
+    const before = new User({ id: "u_1", name: "Ada" })
+    const after = new User({ id: "u_2", name: "Ada" })
+
+    expect(before.diff(after)).toEqual({
+      id: { self: "u_1", that: "u_2" },
+    })
+  })
+
+  it("diff() distinguishes absent optional keys from present undefined keys", () => {
+    class User extends DataClass.extend("id", "name")<User> {
+      declare id: string
+      declare name?: string | undefined
+    }
+
+    const absent = new User({ id: "u_1" })
+    const presentUndefined = new User({ id: "u_1", name: undefined })
+
+    expect(absent.diff(presentUndefined)).toEqual({
+      name: { self: undefined, that: undefined },
+    })
+  })
+
+  it("diff() recurses into nested DataClass values with same prototype", () => {
+    class Address extends DataClass.extend("city", "country")<Address> {
+      declare city: string
+      declare country: string
+    }
+
+    class User extends DataClass.extend("id", "address")<User> {
+      declare id: string
+      declare address: Address
+    }
+
+    const a = new User({
+      id: "u_1",
+      address: new Address({ city: "NYC", country: "US" }),
+    })
+    const b = new User({
+      id: "u_1",
+      address: new Address({ city: "SF", country: "US" }),
+    })
+
+    expect(a.diff(b)).toEqual({
+      address: {
+        city: { self: "NYC", that: "SF" },
+      },
+    })
+  })
+
+  it("diff() does not recurse when nested DataClass prototypes differ", () => {
+    class Address extends DataClass.extend("city")<Address> {
+      declare city: string
+    }
+    class AddressWithZip extends Address.extend("zip")<AddressWithZip> {
+      declare zip: string
+    }
+    class User extends DataClass.extend("id", "address")<User> {
+      declare id: string
+      declare address: Address
+    }
+
+    const left = new User({ id: "u_1", address: new Address({ city: "NYC" }) })
+    const right = new User({
+      id: "u_1",
+      address: new AddressWithZip({ city: "NYC", zip: "10001" }) as any,
+    })
+
+    expect(left.diff(right)).toEqual({
+      address: { self: left.address, that: right.address },
+    })
   })
 
   it("toJSON() serializes only declared fields and integrates with stringify", () => {

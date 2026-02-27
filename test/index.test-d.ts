@@ -175,3 +175,43 @@ test("equals() narrows unknown to this", () => {
     assertType<unknown>(candidate)
   }
 })
+
+test("diff() returns optional changed-key map for primitive keys", () => {
+  const before = new User({ id: "u_1", name: "Ada" })
+  const after = new User({ id: "u_2", name: "Ada" })
+  const diff = before.diff(after)
+
+  assertType<{
+    id?: { self: string; that: string }
+    name?: { self: string | undefined; that: string | undefined }
+  }>(diff)
+})
+
+test("diff() nests for DataClass properties", () => {
+  class Address extends DataClass.extend("city", "country")<Address> {
+    declare city: string
+    declare country: string
+  }
+  class UserWithAddress extends DataClass.extend("id", "address")<UserWithAddress> {
+    declare id: string
+    declare address: Address
+  }
+
+  const a = new UserWithAddress({
+    id: "u_1",
+    address: new Address({ city: "NYC", country: "US" }),
+  })
+  const b = new UserWithAddress({
+    id: "u_1",
+    address: new Address({ city: "SF", country: "US" }),
+  })
+  const diff = a.diff(b)
+
+  assertType<{
+    id?: { self: string; that: string }
+    address?: {
+      city?: { self: string; that: string }
+      country?: { self: string; that: string }
+    }
+  }>(diff)
+})

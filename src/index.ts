@@ -4,6 +4,9 @@ const hasOwn = <A extends PropertyKey>(
 ): self is Record<A, unknown> =>
   Object.prototype.hasOwnProperty.call(self, prop)
 
+const sameProto = (self: object, that: object): boolean =>
+  Object.getPrototypeOf(self) === Object.getPrototypeOf(that)
+
 /**
  * Symbol key used to store the declared data-shape marker on a class prototype.
  *
@@ -27,6 +30,11 @@ type Simplify<A extends object> =
   { [K in keyof A]: A[K] } extends infer B extends A ? B : never
 
 type Mutable<A extends object> = { -readonly [K in keyof A]: A[K] }
+
+type Diff<A extends DataClass> = Simplify<{
+  -readonly [K in keyof A[ShapeId]]?: A[K] extends DataClass ? Diff<A[K]>
+  : { self: A[K]; that: A[K] }
+}>
 
 /**
  * Base class for immutable data classes.
@@ -77,9 +85,10 @@ export class DataClass implements ShapeCarrier<{}> {
       [K in keyof This[ShapeId]]-?: [K, Required<Pick<This, K>>[K]]
     }[keyof This[ShapeId]]
   > {
-    return this.keys()
-      .map((key) => [key, this[key]] as const)
-      .filter(([key]) => hasOwn(this, key)) as any
+    return this.keys().reduce((acc, key) => {
+      if (hasOwn(this, key)) acc.push([key, this[key]] as never)
+      return acc
+    }, [])
   }
 
   /**
@@ -94,18 +103,13 @@ export class DataClass implements ShapeCarrier<{}> {
     ...keys: K
   ): Simplify<Mutable<Pick<this, K[number]>>>
   pick(...picked: Array<keyof this[ShapeId]>) {
-    const out: Record<PropertyKey, unknown> = {}
-
-    const keys =
-      picked.length ?
-        picked // Use input if provided
-      : this.keys() // Otherwise all own string + symbol keys
-    for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i]!
-      if (hasOwn(this, key)) out[key] = this[key] // Preserve optionals
-    }
-
-    return out as any
+    return (picked.length ? picked : this.keys()).reduce(
+      (acc: Record<PropertyKey, unknown>, key) => {
+        if (hasOwn(this, key)) acc[key] = this[key]
+        return acc
+      },
+      {},
+    )
   }
 
   /**
@@ -128,11 +132,7 @@ export class DataClass implements ShapeCarrier<{}> {
    * deeper.
    */
   equals(that: unknown): that is this {
-    if (
-      typeof that !== "object" ||
-      that === null ||
-      Object.getPrototypeOf(that) !== Object.getPrototypeOf(this)
-    ) {
+    if (typeof that !== "object" || that === null || !sameProto(this, that)) {
       return false
     }
 
@@ -150,6 +150,60 @@ export class DataClass implements ShapeCarrier<{}> {
         (thisValue instanceof DataClass && thisValue.equals(thatValue))
       )
     })
+  }
+
+  /**
+   * Return a structural diff between this instance and `that`.
+   *
+   * Only declared keys are considered. Keys that differ are included as:
+   *
+   * 1. `{ self, that }` for primitive/non-`DataClass` values.
+   * 2. A nested diff object for `DataClass` values with the same prototype.
+   *
+   * Optional keys preserve presence semantics: an absent key and a present key
+   * (even if `undefined`) are treated as different.
+   */
+  diff(that: this): Diff<this> {
+    type SimpleDiff = {
+      [x: PropertyKey]: { self: unknown; that: unknown } | SimpleDiff
+    }
+    return this.keys().reduce<SimpleDiff>((acc, key) => {
+      const hasThis = hasOwn(this, key)
+      const hasThat = hasOwn(that, key)
+      if (!hasThis && !hasThat) return acc // Both missing, no difference
+
+      const thisValue = this[key]
+      const thatValue = that[key]
+
+      // One present, return comparison
+      if (hasThis !== hasThat) {
+        acc[key] = { self: thisValue, that: thatValue }
+        return acc
+      }
+
+      const thisDataClass = thisValue instanceof DataClass
+
+      // Both present but equal, no difference
+      if (
+        Object.is(thisValue, thatValue) ||
+        (thisDataClass && thisValue.equals(thatValue))
+      ) {
+        return acc
+      }
+
+      // Recurse if same DC instances, otherwise return comparison
+      if (
+        thisDataClass &&
+        thatValue instanceof DataClass &&
+        sameProto(thisValue, thatValue)
+      ) {
+        acc[key] = thisValue.diff(thatValue) as SimpleDiff
+        return acc
+      }
+
+      acc[key] = { self: thisValue, that: thatValue }
+      return acc
+    }, {}) as any
   }
 
   toJSON() {
@@ -205,10 +259,10 @@ export class DataClass implements ShapeCarrier<{}> {
       ) {
         super(props as never, ...rest) // Defer base key assignment and rest props
         // Assign declared props
-        for (let i = 0; i < declared.length; i += 1) {
-          const key = declared[i] as never
-          if (hasOwn(props, key)) this[key] = props[key] // Preserve optionals
-        }
+        declared.forEach((key) => {
+          // Preserve optionals
+          if (hasOwn(props, key)) this[key as never] = props[key as never]
+        })
       }
 
       declare readonly [ShapeId]: {
