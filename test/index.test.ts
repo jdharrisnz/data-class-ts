@@ -3,367 +3,305 @@ import { describe, expect, it } from "vitest"
 import { DataClass, ShapeId } from "../src/index.js"
 
 describe("DataClass runtime behavior", () => {
-  it("pick() includes declared own properties and omits undeclared ad-hoc fields", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const user = new User({ id: "u_1", name: "Ada" })
-    ;(user as any).role = "admin"
-
-    expect(user.pick()).toEqual({ id: "u_1", name: "Ada" })
-    expect(Reflect.ownKeys(user.pick())).not.toContain("role")
-  })
-
-  it("pick() omits declared keys that are not present on the instance", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const user = new User({ id: "u_1" })
-    const picked = user.pick()
-
-    expect(picked).toEqual({ id: "u_1" })
-    expect(Reflect.ownKeys(picked)).not.toContain("name")
-  })
-
-  it("pick(...keys) projects only selected declared keys", () => {
-    class User extends DataClass.extend("id", "name", "age")<User> {
-      declare id: string
-      declare name?: string
-      declare age: number
-    }
-
-    const user = new User({ id: "u_1", age: 42 })
-
-    expect(user.pick("id")).toEqual({ id: "u_1" })
-    expect(user.pick("name", "age")).toEqual({ age: 42 })
-  })
-
-  it("pick() returns a fresh object", () => {
-    class User extends DataClass.extend("id")<User> {
-      declare id: string
-    }
-
-    const user = new User({ id: "u_1" })
-    const picked = user.pick()
-
-    picked.id = "mutated"
-
-    expect(user.pick().id).toBe("u_1")
-    expect(picked).not.toBe(user.pick())
-  })
-
-  it("multi-level extend preserves inherited keys at runtime", () => {
-    class Base extends DataClass.extend("id")<Base> {
-      declare id: string
-    }
-
-    class Child extends Base.extend("name")<Child> {
-      declare name?: string
-    }
-
-    const child = new Child({ id: "u_1", name: "Ada" })
-    expect(child.pick()).toEqual({ id: "u_1", name: "Ada" })
-  })
-
-  it("ShapeId marker on prototype merges inherited and new declarations", () => {
-    class Base extends DataClass.extend("id")<Base> {
-      declare id: string
-    }
-
-    class Child extends Base.extend("name")<Child> {
-      declare name?: string
-    }
-
-    expect(Base.prototype[ShapeId]).toEqual({ id: null })
-    expect(Child.prototype[ShapeId]).toEqual({ id: null, name: null })
-  })
-
-  it("pick() preserves symbol-declared fields via Reflect.ownKeys", () => {
-    const token = Symbol("token")
-
-    class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-      declare id: string;
-      declare [token]: number
-    }
-
-    const value = new WithSymbol({ id: "u_1", [token]: 42 })
-    const picked = value.pick()
-    const keys = Reflect.ownKeys(picked)
-
-    expect(keys).toContain(token)
-    expect(picked[token]).toBe(42)
-    expect(picked.id).toBe("u_1")
-  })
-
-  it("keys() returns all declared keys, including optional keys not present", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const user = new User({ id: "u_1" })
-    const keys = user.keys()
-
-    expect(keys).toContain("id")
-    expect(keys).toContain("name")
-    expect(keys).toHaveLength(2)
-  })
-
-  it("keys() includes symbol declarations", () => {
-    const token = Symbol("token")
-
-    class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-      declare id: string;
-      declare [token]: number
-    }
-
-    const value = new WithSymbol({ id: "u_1", [token]: 42 })
-    const keys = value.keys()
-
-    expect(keys).toContain("id")
-    expect(keys).toContain(token)
-    expect(keys).toHaveLength(2)
-  })
-
-  it("entries() includes only present declared keys", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const user = new User({ id: "u_1" })
-    const entries = user.entries()
-
-    expect(entries).toEqual([["id", "u_1"]])
-  })
-
-  it("entries() includes declared symbol entries", () => {
-    const token = Symbol("token")
-
-    class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-      declare id: string;
-      declare [token]: number
-    }
-
-    const value = new WithSymbol({ id: "u_1", [token]: 42 })
-    const entries = value.entries()
-    const tokenEntry = entries.find(([key]) => key === token)
-
-    expect(entries).toContainEqual(["id", "u_1"])
-    expect(tokenEntry).toEqual([token, 42])
-    expect(entries).toHaveLength(2)
-  })
-
-  it("omit(...keys) excludes selected declared keys", () => {
-    class User extends DataClass.extend("id", "name", "age")<User> {
-      declare id: string
-      declare name?: string
-      declare age: number
-    }
-
-    const user = new User({ id: "u_1", name: "Ada", age: 42 })
-
-    expect(user.omit("name")).toEqual({ id: "u_1", age: 42 })
-    expect(user.omit("id", "age")).toEqual({ name: "Ada" })
-  })
-
-  it("omit() with no keys is equivalent to pick()", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const user = new User({ id: "u_1" })
-
-    expect(user.omit()).toEqual(user.pick())
-  })
-
-  it("omit(...keys) supports declared symbol keys", () => {
-    const token = Symbol("token")
-
-    class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-      declare id: string;
-      declare [token]: number
-    }
-
-    const value = new WithSymbol({ id: "u_1", [token]: 42 })
-    const omitted = value.omit(token)
-
-    expect(omitted).toEqual({ id: "u_1" })
-    expect(Reflect.ownKeys(omitted)).not.toContain(token)
-  })
-
-  it("equals() compares declared primitive values and rejects non-instances", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const a = new User({ id: "u_1", name: "Ada" })
-    const b = new User({ id: "u_1", name: "Ada" })
-    const c = new User({ id: "u_1", name: "Grace" })
-
-    expect(a.equals(b)).toBe(true)
-    expect(a.equals(c)).toBe(false)
-    expect(a.equals({ id: "u_1", name: "Ada" })).toBe(false)
-  })
-
-  it("equals() requires the same prototype", () => {
-    class Base extends DataClass.extend("id")<Base> {
-      declare id: string
-    }
-    class Child extends Base.extend("name")<Child> {
-      declare name?: string
-    }
-
-    const base = new Base({ id: "u_1" })
-    const child = new Child({ id: "u_1" })
-
-    expect(base.equals(child)).toBe(false)
-    expect(child.equals(base)).toBe(false)
-  })
-
-  it("equals() treats NaN as equal via Object.is semantics", () => {
-    class Reading extends DataClass.extend("value")<Reading> {
-      declare value: number
-    }
-
-    const a = new Reading({ value: Number.NaN })
-    const b = new Reading({ value: Number.NaN })
-    const c = new Reading({ value: 1 })
-
-    expect(a.equals(b)).toBe(true)
-    expect(a.equals(c)).toBe(false)
-  })
-
-  it("equals() distinguishes absent optional keys from present undefined keys", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const absent = new User({ id: "u_1" })
-    const presentUndefinedA = new User({ id: "u_1" })
-    const presentUndefinedB = new User({ id: "u_1" })
-
-    ;(presentUndefinedA as any).name = undefined
-    ;(presentUndefinedB as any).name = undefined
-
-    expect(absent.equals(presentUndefinedA)).toBe(false)
-    expect(presentUndefinedA.equals(absent)).toBe(false)
-    expect(presentUndefinedA.equals(presentUndefinedB)).toBe(true)
-  })
-
-  it("equals() performs deep checks for nested DataClass values", () => {
-    class Address extends DataClass.extend("city")<Address> {
-      declare city: string
-    }
-
-    class User extends DataClass.extend("id", "address")<User> {
-      declare id: string
-      declare address: Address
-    }
-
-    const a = new User({ id: "u_1", address: new Address({ city: "NYC" }) })
-    const b = new User({ id: "u_1", address: new Address({ city: "NYC" }) })
-    const c = new User({ id: "u_1", address: new Address({ city: "SF" }) })
-
-    expect(a.equals(b)).toBe(true)
-    expect(a.equals(c)).toBe(false)
-  })
-
-  it("diff() returns only changed primitive keys", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
-
-    const before = new User({ id: "u_1", name: "Ada" })
-    const after = new User({ id: "u_2", name: "Ada" })
-
-    expect(before.diff(after)).toEqual({
-      id: { self: "u_1", that: "u_2" },
+  const token = Symbol("token")
+
+  class Base extends DataClass.extend("id")<Base> {
+    declare id: string
+  }
+
+  class User extends Base.extend("name")<User> {
+    declare name?: string
+  }
+
+  class UserWithAge extends User.extend("age")<UserWithAge> {
+    declare age: number
+  }
+
+  class UserAllowUndefinedName extends Base.extend(
+    "name",
+  )<UserAllowUndefinedName> {
+    declare name?: string | undefined
+  }
+
+  class WithSymbol extends Base.extend(token)<WithSymbol> {
+    declare [token]: number
+  }
+
+  class Child extends Base.extend("name")<Child> {
+    declare name?: string
+  }
+
+  class Reading extends DataClass.extend("value")<Reading> {
+    declare value: number
+  }
+
+  class Address extends DataClass.extend("city")<Address> {
+    declare city: string
+  }
+
+  class UserWithAddress extends Base.extend("address")<UserWithAddress> {
+    declare address: Address
+  }
+
+  class AddressWithCountry extends Address.extend(
+    "country",
+  )<AddressWithCountry> {
+    declare country: string
+  }
+
+  class UserWithDetailedAddress extends Base.extend(
+    "address",
+  )<UserWithDetailedAddress> {
+    declare address: AddressWithCountry
+  }
+
+  class AddressWithZip extends Address.extend("zip")<AddressWithZip> {
+    declare zip: string
+  }
+
+  describe("extend()", () => {
+    it("multi-level extend preserves inherited keys at runtime", () => {
+      const child = new Child({ id: "u_1", name: "Ada" })
+      expect(child.pick()).toEqual({ id: "u_1", name: "Ada" })
     })
   })
 
-  it("diff() distinguishes absent optional keys from present undefined keys", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string | undefined
-    }
-
-    const absent = new User({ id: "u_1" })
-    const presentUndefined = new User({ id: "u_1", name: undefined })
-
-    expect(absent.diff(presentUndefined)).toEqual({
-      name: { self: undefined, that: undefined },
+  describe("ShapeId", () => {
+    it("marker on prototype merges inherited and new declarations", () => {
+      expect(Base.prototype[ShapeId]).toEqual({ id: null })
+      expect(Child.prototype[ShapeId]).toEqual({ id: null, name: null })
     })
   })
 
-  it("diff() recurses into nested DataClass values with same prototype", () => {
-    class Address extends DataClass.extend("city", "country")<Address> {
-      declare city: string
-      declare country: string
-    }
+  describe("pick()", () => {
+    it("includes declared own properties and omits undeclared ad-hoc fields", () => {
+      const user = new User({ id: "u_1", name: "Ada" })
+      ;(user as any).role = "admin"
 
-    class User extends DataClass.extend("id", "address")<User> {
-      declare id: string
-      declare address: Address
-    }
-
-    const a = new User({
-      id: "u_1",
-      address: new Address({ city: "NYC", country: "US" }),
-    })
-    const b = new User({
-      id: "u_1",
-      address: new Address({ city: "SF", country: "US" }),
+      expect(user.pick()).toEqual({ id: "u_1", name: "Ada" })
+      expect(Reflect.ownKeys(user.pick())).not.toContain("role")
     })
 
-    expect(a.diff(b)).toEqual({
-      address: {
-        city: { self: "NYC", that: "SF" },
-      },
-    })
-  })
+    it("omits declared keys that are not present on the instance", () => {
+      const user = new User({ id: "u_1" })
+      const picked = user.pick()
 
-  it("diff() does not recurse when nested DataClass prototypes differ", () => {
-    class Address extends DataClass.extend("city")<Address> {
-      declare city: string
-    }
-    class AddressWithZip extends Address.extend("zip")<AddressWithZip> {
-      declare zip: string
-    }
-    class User extends DataClass.extend("id", "address")<User> {
-      declare id: string
-      declare address: Address
-    }
-
-    const left = new User({ id: "u_1", address: new Address({ city: "NYC" }) })
-    const right = new User({
-      id: "u_1",
-      address: new AddressWithZip({ city: "NYC", zip: "10001" }) as any,
+      expect(picked).toEqual({ id: "u_1" })
+      expect(Reflect.ownKeys(picked)).not.toContain("name")
     })
 
-    expect(left.diff(right)).toEqual({
-      address: { self: left.address, that: right.address },
+    it("projects only selected declared keys", () => {
+      const user = new UserWithAge({ id: "u_1", age: 42 })
+
+      expect(user.pick("id")).toEqual({ id: "u_1" })
+      expect(user.pick("name", "age")).toEqual({ age: 42 })
+    })
+
+    it("returns a fresh object", () => {
+      const user = new Base({ id: "u_1" })
+      const picked = user.pick()
+
+      picked.id = "mutated"
+
+      expect(user.pick().id).toBe("u_1")
+      expect(picked).not.toBe(user.pick())
+    })
+
+    it("preserves symbol-declared fields via Reflect.ownKeys", () => {
+      const value = new WithSymbol({ id: "u_1", [token]: 42 })
+      const picked = value.pick()
+      const keys = Reflect.ownKeys(picked)
+
+      expect(keys).toContain(token)
+      expect(picked[token]).toBe(42)
+      expect(picked.id).toBe("u_1")
     })
   })
 
-  it("toJSON() serializes only declared fields and integrates with stringify", () => {
-    class User extends DataClass.extend("id", "name")<User> {
-      declare id: string
-      declare name?: string
-    }
+  describe("keys()", () => {
+    it("returns all declared keys, including optional keys not present", () => {
+      const user = new User({ id: "u_1" })
+      const keys = user.keys()
 
-    const user = new User({ id: "u_1" })
-    ;(user as any).role = "admin"
+      expect(keys).toContain("id")
+      expect(keys).toContain("name")
+      expect(keys).toHaveLength(2)
+    })
 
-    expect(user.toJSON()).toEqual({ id: "u_1" })
-    expect(JSON.stringify(user)).toBe('{"id":"u_1"}')
+    it("includes symbol declarations", () => {
+      const value = new WithSymbol({ id: "u_1", [token]: 42 })
+      const keys = value.keys()
+
+      expect(keys).toContain("id")
+      expect(keys).toContain(token)
+      expect(keys).toHaveLength(2)
+    })
+  })
+
+  describe("entries()", () => {
+    it("includes only present declared keys", () => {
+      const user = new User({ id: "u_1" })
+      const entries = user.entries()
+
+      expect(entries).toEqual([["id", "u_1"]])
+    })
+
+    it("includes declared symbol entries", () => {
+      const value = new WithSymbol({ id: "u_1", [token]: 42 })
+      const entries = value.entries()
+      const tokenEntry = entries.find(([key]) => key === token)
+
+      expect(entries).toContainEqual(["id", "u_1"])
+      expect(tokenEntry).toEqual([token, 42])
+      expect(entries).toHaveLength(2)
+    })
+  })
+
+  describe("omit()", () => {
+    it("excludes selected declared keys", () => {
+      const user = new UserWithAge({ id: "u_1", name: "Ada", age: 42 })
+
+      expect(user.omit("name")).toEqual({ id: "u_1", age: 42 })
+      expect(user.omit("id", "age")).toEqual({ name: "Ada" })
+    })
+
+    it("with no keys is equivalent to pick()", () => {
+      const user = new User({ id: "u_1" })
+
+      expect(user.omit()).toEqual(user.pick())
+    })
+
+    it("supports declared symbol keys", () => {
+      const value = new WithSymbol({ id: "u_1", [token]: 42 })
+      const omitted = value.omit(token)
+
+      expect(omitted).toEqual({ id: "u_1" })
+      expect(Reflect.ownKeys(omitted)).not.toContain(token)
+    })
+  })
+
+  describe("equals()", () => {
+    it("compares declared primitive values and rejects non-instances", () => {
+      const a = new User({ id: "u_1", name: "Ada" })
+      const b = new User({ id: "u_1", name: "Ada" })
+      const c = new User({ id: "u_1", name: "Grace" })
+
+      expect(a.equals(b)).toBe(true)
+      expect(a.equals(c)).toBe(false)
+      expect(a.equals({ id: "u_1", name: "Ada" })).toBe(false)
+    })
+
+    it("requires the same prototype", () => {
+      const base = new Base({ id: "u_1" })
+      const child = new Child({ id: "u_1" })
+
+      expect(base.equals(child)).toBe(false)
+      expect(child.equals(base)).toBe(false)
+    })
+
+    it("treats NaN as equal via Object.is semantics", () => {
+      const a = new Reading({ value: Number.NaN })
+      const b = new Reading({ value: Number.NaN })
+      const c = new Reading({ value: 1 })
+
+      expect(a.equals(b)).toBe(true)
+      expect(a.equals(c)).toBe(false)
+    })
+
+    it("distinguishes absent optional keys from present undefined keys", () => {
+      const absent = new User({ id: "u_1" })
+      const presentUndefinedA = new User({ id: "u_1" })
+      const presentUndefinedB = new User({ id: "u_1" })
+
+      ;(presentUndefinedA as any).name = undefined
+      ;(presentUndefinedB as any).name = undefined
+
+      expect(absent.equals(presentUndefinedA)).toBe(false)
+      expect(presentUndefinedA.equals(absent)).toBe(false)
+      expect(presentUndefinedA.equals(presentUndefinedB)).toBe(true)
+    })
+
+    it("performs deep checks for nested DataClass values", () => {
+      const a = new UserWithAddress({
+        id: "u_1",
+        address: new Address({ city: "NYC" }),
+      })
+      const b = new UserWithAddress({
+        id: "u_1",
+        address: new Address({ city: "NYC" }),
+      })
+      const c = new UserWithAddress({
+        id: "u_1",
+        address: new Address({ city: "SF" }),
+      })
+
+      expect(a.equals(b)).toBe(true)
+      expect(a.equals(c)).toBe(false)
+    })
+  })
+
+  describe("diff()", () => {
+    it("returns only changed primitive keys", () => {
+      const before = new User({ id: "u_1", name: "Ada" })
+      const after = new User({ id: "u_2", name: "Ada" })
+
+      expect(before.diff(after)).toEqual({
+        id: { self: "u_1", that: "u_2" },
+      })
+    })
+
+    it("distinguishes absent optional keys from present undefined keys", () => {
+      const absent = new UserAllowUndefinedName({ id: "u_1" })
+      const presentUndefined = new UserAllowUndefinedName({
+        id: "u_1",
+        name: undefined,
+      })
+
+      expect(absent.diff(presentUndefined)).toEqual({
+        name: { self: undefined, that: undefined },
+      })
+    })
+
+    it("recurses into nested DataClass values with same prototype", () => {
+      const a = new UserWithDetailedAddress({
+        id: "u_1",
+        address: new AddressWithCountry({ city: "NYC", country: "US" }),
+      })
+      const b = new UserWithDetailedAddress({
+        id: "u_1",
+        address: new AddressWithCountry({ city: "SF", country: "US" }),
+      })
+
+      expect(a.diff(b)).toEqual({
+        address: {
+          city: { self: "NYC", that: "SF" },
+        },
+      })
+    })
+
+    it("does not recurse when nested DataClass prototypes differ", () => {
+      const left = new UserWithAddress({
+        id: "u_1",
+        address: new Address({ city: "NYC" }),
+      })
+      const right = new UserWithAddress({
+        id: "u_1",
+        address: new AddressWithZip({ city: "NYC", zip: "10001" }),
+      })
+
+      expect(left.diff(right)).toEqual({
+        address: { self: left.address, that: right.address },
+      })
+    })
+  })
+
+  describe("toJSON()", () => {
+    it("serializes only declared fields and integrates with stringify", () => {
+      const user = new User({ id: "u_1" })
+      ;(user as any).role = "admin"
+
+      expect(user.toJSON()).toEqual({ id: "u_1" })
+      expect(JSON.stringify(user)).toBe('{"id":"u_1"}')
+    })
   })
 })
