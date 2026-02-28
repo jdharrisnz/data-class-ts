@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { DataClass, ShapeId } from "../src/index.js"
+import { DataClass } from "../src/index.js"
 
 describe("DataClass runtime behavior", () => {
   const token = Symbol("token")
@@ -66,10 +66,19 @@ describe("DataClass runtime behavior", () => {
     })
   })
 
-  describe("ShapeId", () => {
+  describe("Shape", () => {
     it("marker on prototype merges inherited and new declarations", () => {
-      expect(Base.prototype[ShapeId]).toEqual({ id: null })
-      expect(Child.prototype[ShapeId]).toEqual({ id: null, name: null })
+      expect(Base.prototype[DataClass.Shape]).toEqual({ id: null })
+      expect(Child.prototype[DataClass.Shape]).toEqual({ id: null, name: null })
+    })
+  })
+
+  describe("isDataClass()", () => {
+    it("detects DataClass instances and rejects plain values", () => {
+      expect(DataClass.isDataClass(new User({ id: "u_1" }))).toBe(true)
+      expect(DataClass.isDataClass({ id: "u_1" })).toBe(false)
+      expect(DataClass.isDataClass(null)).toBe(false)
+      expect(DataClass.isDataClass(undefined)).toBe(false)
     })
   })
 
@@ -188,15 +197,13 @@ describe("DataClass runtime behavior", () => {
 
       expect(a.equals(b)).toBe(true)
       expect(a.equals(c)).toBe(false)
-      expect(a.equals({ id: "u_1", name: "Ada" })).toBe(false)
     })
 
-    it("requires the same prototype", () => {
+    it("allows a supertype receiver to ignore extra subtype keys", () => {
       const base = new Base({ id: "u_1" })
-      const child = new Child({ id: "u_1" })
+      const child = new Child({ id: "u_1", name: "Ada" })
 
-      expect(base.equals(child)).toBe(false)
-      expect(child.equals(base)).toBe(false)
+      expect(base.equals(child)).toBe(true)
     })
 
     it("treats NaN as equal via Object.is semantics", () => {
@@ -262,7 +269,7 @@ describe("DataClass runtime behavior", () => {
       })
     })
 
-    it("recurses into nested DataClass values with same prototype", () => {
+    it("recurses into nested DataClass values", () => {
       const a = new UserWithDetailedAddress({
         id: "u_1",
         address: new AddressWithCountry({ city: "NYC", country: "US" }),
@@ -279,14 +286,14 @@ describe("DataClass runtime behavior", () => {
       })
     })
 
-    it("does not recurse when nested DataClass prototypes differ", () => {
+    it("does not recurse when nested DataClass shapes differ", () => {
       const left = new UserWithAddress({
         id: "u_1",
         address: new Address({ city: "NYC" }),
       })
       const right = new UserWithAddress({
         id: "u_1",
-        address: new AddressWithZip({ city: "NYC", zip: "10001" }),
+        address: new AddressWithZip({ city: "NYC", zip: "10001" }) as any,
       })
 
       expect(left.diff(right)).toEqual({

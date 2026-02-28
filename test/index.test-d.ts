@@ -128,6 +128,22 @@ test("ShapeCarrier remains assignable for advanced consumers", () => {
   assertType<ShapeCarrier<{ id: string }>>(user)
 })
 
+test("DataClass.Shape is usable for advanced shape access", () => {
+  const user = new User({ id: "u_1" })
+
+  assertType<{ readonly id: null; readonly name?: null }>(user[DataClass.Shape])
+})
+
+test("DataClass.isDataClass narrows unknown to DataClass", () => {
+  const candidate: unknown = new User({ id: "u_1" })
+
+  if (DataClass.isDataClass(candidate)) {
+    assertType<DataClass>(candidate)
+  } else {
+    assertType<unknown>(candidate)
+  }
+})
+
 test("toJSON() returns declared data shape", () => {
   const user = new User({ id: "u_1" })
   const json = user.toJSON()
@@ -163,17 +179,15 @@ test("omit(...keys) supports symbol keys in types", () => {
   assertType<{ [K in typeof token]: number }>(onlyToken)
 })
 
-test("equals() narrows unknown to this", () => {
+test("equals() requires same type and returns boolean", () => {
   const user = new User({ id: "u_1" })
-  const candidate: unknown = new User({ id: "u_1" })
+  const candidate = new User({ id: "u_1" })
+  const unknownCandidate: unknown = candidate
 
-  if (user.equals(candidate)) {
-    assertType<User>(candidate)
-    const id = candidate.id
-    assertType<string>(id)
-  } else {
-    assertType<unknown>(candidate)
-  }
+  expectTypeOf(user.equals(candidate)).toEqualTypeOf<boolean>()
+
+  // @ts-expect-error equals accepts `this`, not unknown
+  user.equals(unknownCandidate)
 })
 
 test("diff() returns optional changed-key map for primitive keys", () => {
