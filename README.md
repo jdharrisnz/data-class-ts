@@ -1,4 +1,4 @@
-# data-class
+# data-class-ts
 
 Immutable-first data classes for TypeScript.
 
@@ -9,7 +9,7 @@ Immutable-first data classes for TypeScript.
 3. Methods to transform that data
 
 ...in one place, while encouraging immutable workflows. Zero dependencies,
-1.25kb minified.
+1.39kb minified.
 
 ## Why this exists
 
@@ -19,20 +19,20 @@ buckets with ergonomic behavior attached.
 
 For this kind of model, many teams default to `type`/`interface` plus several
 separate pieces (factory functions, helper utilities, ad hoc
-equality/serialization, and update helpers). `data-class` keeps those concerns
-together in one place:
+equality/serialization, and update helpers). `data-class-ts` keeps those
+concerns together in one place:
 
 1. You declare keys up front with `extend(...)`.
 2. Constructor assignment is generated from that declaration.
 3. Instance methods define transformation behavior next to the data shape.
 4. Strongly-typed built-ins like `keys`, `entries`, `pick`, `omit`, `equals`,
-   and `toJSON` provide consistent ergonomics.
+   `diff`, and `toJSON` provide consistent ergonomics.
 5. Declared-key projection gives a niche guard against accidental excess data.
 
 ## Core pattern
 
 ```ts
-import { DataClass } from "data-class"
+import { DataClass } from "data-class-ts"
 
 class User extends DataClass.extend("id", "name")<User> {
   declare readonly id: string
@@ -51,6 +51,15 @@ const user = new User({ id: "u_1" })
 ### `DataClass.extend(...keys)`
 
 Defines declared data keys and returns a constructor base to extend from.
+
+### `DataClass.Shape`
+
+Static key for the declared shape marker on prototypes. Useful for advanced
+type-level transforms against declared fields.
+
+### `DataClass.isDataClass(value)`
+
+Runtime guard for checking whether a value is a `DataClass` instance.
 
 ### `pick()`
 
@@ -76,10 +85,13 @@ Returns `[key, value]` tuples for declared keys that are present on the instance
 
 Returns a POJO of present declared keys excluding the selected keys.
 
-### `equals(value)`
+### `equals(that)`
 
-Compares declared keys using `Object.is()`. For nested `DataClass` values,
-comparison is deep via nested `equals`.
+Compares declared keys using `Object.is()`.
+
+1. Type signature is `equals(that: this): boolean`.
+2. Nested `DataClass` values compare deeply via nested `equals`.
+3. Extra keys on `that` are ignored when not declared on `this`.
 
 ### `diff(that)`
 
@@ -87,7 +99,8 @@ Returns a sparse object describing differences across declared keys.
 
 1. Changed primitive/non-`DataClass` fields are reported as
    `{ self: value, that: value }`.
-2. Nested `DataClass` fields recurse when both sides share the same prototype.
+2. Nested `DataClass` fields recurse when both sides share the same declared
+   shape.
 3. Optional presence is significant: absent and present-`undefined` are treated
    as different.
 
