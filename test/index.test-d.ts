@@ -42,10 +42,10 @@ test("keys() returns declared key union", () => {
 test("keys() includes declared symbol keys in the type", () => {
   const token = Symbol("token")
 
-  class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-    declare id: string;
-    declare [token]: number
-  }
+  class WithSymbol extends DataClass.extend(token, "id")<{
+    id: string
+    [token]: number
+  }> {}
 
   const keys = new WithSymbol({ id: "u_1", [token]: 42 }).keys()
   assertType<Array<"id" | typeof token>>(keys)
@@ -61,10 +61,10 @@ test("entries() omits optional undefined from tuple value types", () => {
 test("entries() includes declared symbol keys in tuple types", () => {
   const token = Symbol("token")
 
-  class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-    declare id: string;
-    declare [token]: number
-  }
+  class WithSymbol extends DataClass.extend(token, "id")<{
+    id: string
+    [token]: number
+  }> {}
 
   const entries = new WithSymbol({ id: "u_1", [token]: 42 }).entries()
   assertType<Array<["id", string] | [typeof token, number]>>(entries)
@@ -104,10 +104,7 @@ test("subclass override narrowing works with extend()<Sub>", () => {
 
 test("incompatible subclass override is rejected", () => {
   // @ts-expect-error boolean is not compatible with string | number
-  class Incompatible extends Base.extend()<Incompatible> {
-    // @ts-expect-error boolean is not compatible with inherited id
-    declare id: boolean
-  }
+  class Incompatible extends Base.extend()<{ id: boolean }> {}
 
   void Base
   void Incompatible
@@ -168,10 +165,10 @@ test("omit(...keys) narrows by excluding selected keys", () => {
 test("omit(...keys) supports symbol keys in types", () => {
   const token = Symbol("token")
 
-  class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-    declare id: string;
-    declare [token]: number
-  }
+  class WithSymbol extends DataClass.extend(token, "id")<{
+    id: string
+    [token]: number
+  }> {}
 
   const instance = new WithSymbol({ id: "u_1", [token]: 42 })
   const withoutToken = instance.omit(token)
@@ -204,17 +201,14 @@ test("diff() returns optional changed-key map for primitive keys", () => {
 })
 
 test("diff() nests for DataClass properties", () => {
-  class Address extends DataClass.extend("city", "country")<Address> {
-    declare city: string
-    declare country: string
-  }
+  class Address extends DataClass.extend("city", "country")<{
+    city: string
+    country: string
+  }> {}
   class UserWithAddress extends DataClass.extend(
     "id",
     "address",
-  )<UserWithAddress> {
-    declare id: string
-    declare address: Address
-  }
+  )<{ id: string; address: Address }> {}
 
   const a = new UserWithAddress({
     id: "u_1",

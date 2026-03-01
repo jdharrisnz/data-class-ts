@@ -5,59 +5,35 @@ import { DataClass } from "../src/index.js"
 describe("DataClass runtime behavior", () => {
   const token = Symbol("token")
 
-  class Base extends DataClass.extend("id")<Base> {
-    declare id: string
-  }
+  class Base extends DataClass.extend("id")<{ id: string }> {}
 
-  class User extends Base.extend("name")<User> {
-    declare name?: string
-  }
+  class User extends Base.extend("name")<{ name?: string }> {}
 
-  class UserWithAge extends User.extend("age")<UserWithAge> {
-    declare age: number
-  }
+  class UserWithAge extends User.extend("age")<{ age: number }> {}
 
-  class UserAllowUndefinedName extends Base.extend(
-    "name",
-  )<UserAllowUndefinedName> {
-    declare name?: string | undefined
-  }
+  class UserAllowUndefinedName extends Base.extend("name")<{
+    name?: string | undefined
+  }> {}
 
-  class WithSymbol extends Base.extend(token)<WithSymbol> {
-    declare [token]: number
-  }
+  class WithSymbol extends Base.extend(token)<{ [token]: number }> {}
 
-  class Child extends Base.extend("name")<Child> {
-    declare name?: string
-  }
+  class Child extends Base.extend("name")<{ name?: string }> {}
 
-  class Reading extends DataClass.extend("value")<Reading> {
-    declare value: number
-  }
+  class Reading extends DataClass.extend("value")<{ value: number }> {}
 
-  class Address extends DataClass.extend("city")<Address> {
-    declare city: string
-  }
+  class Address extends DataClass.extend("city")<{ city: string }> {}
 
-  class UserWithAddress extends Base.extend("address")<UserWithAddress> {
-    declare address: Address
-  }
+  class UserWithAddress extends Base.extend("address")<{ address: Address }> {}
 
-  class AddressWithCountry extends Address.extend(
-    "country",
-  )<AddressWithCountry> {
-    declare country: string
-  }
+  class AddressWithCountry extends Address.extend("country")<{
+    country: string
+  }> {}
 
-  class UserWithDetailedAddress extends Base.extend(
-    "address",
-  )<UserWithDetailedAddress> {
-    declare address: AddressWithCountry
-  }
+  class UserWithDetailedAddress extends Base.extend("address")<{
+    address: AddressWithCountry
+  }> {}
 
-  class AddressWithZip extends Address.extend("zip")<AddressWithZip> {
-    declare zip: string
-  }
+  class AddressWithZip extends Address.extend("zip")<{ zip: string }> {}
 
   describe("extend()", () => {
     it("multi-level extend preserves inherited keys at runtime", () => {
@@ -137,6 +113,41 @@ describe("DataClass runtime behavior", () => {
       expect(keys).toContain("id")
       expect(keys).toContain(token)
       expect(keys).toHaveLength(2)
+    })
+
+    it("dedupes inherited keys that are redeclared", () => {
+      class Redeclared extends Base.extend("id", "name")<{
+        id: string
+        name?: string
+      }> {}
+
+      const value = new Redeclared({ id: "u_1", name: "Ada" })
+      expect(value.keys()).toEqual(["id", "name"])
+    })
+
+    it("builds deduped key list once per derived class", () => {
+      class CountedBase extends DataClass.extend("id")<{ id: string }> {
+        static calls = 0
+      }
+
+      class CountedChild extends CountedBase.extend("name")<{
+        name?: string
+      }> {}
+
+      const originalKeys = CountedBase.prototype.keys as any
+      ;(CountedBase.prototype as any).keys = function (this: CountedBase) {
+        CountedBase.calls += 1
+        return originalKeys.call(this)
+      }
+
+      const first = new CountedChild({ id: "u_1" })
+      const second = new CountedChild({ id: "u_2", name: "Ada" })
+
+      first.keys()
+      first.keys()
+      second.keys()
+
+      expect(CountedBase.calls).toBe(1)
     })
   })
 

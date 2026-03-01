@@ -6,6 +6,7 @@ const hasOwn = <A extends PropertyKey>(
 
 const ns = "~data-class-ts/"
 const Brand = `${ns}Brand`
+
 declare const DataClassShape: unique symbol
 /**
  * Type of the key used to store the declared data-shape marker on each
@@ -30,6 +31,16 @@ export type ShapeOf<A extends DataClass> = NonNullable<A[DataClassShape]>
 type Simplify<A extends object> =
   { [K in keyof A]: A[K] } extends infer B extends A ? B : never
 
+type PickOrNever<A, K extends keyof A, BaseK extends keyof A> = Readonly<
+  // Pick declared part of props (including overrides)
+  Pick<A, Extract<K | BaseK, keyof A>> &
+    // Declared-but-untyped keys become required + `never` as an error
+    Record<Exclude<K, keyof A>, never>
+>
+
+type Tail<A extends Array<unknown>> =
+  A extends [unknown, ...infer Rest] ? Rest : []
+
 type Mutable<A extends object> = { -readonly [K in keyof A]: A[K] }
 
 type Diff<A extends DataClass> = Simplify<{
@@ -39,12 +50,6 @@ type Diff<A extends DataClass> = Simplify<{
 
 /**
  * Base class for immutable data classes.
- *
- * The entrypoint is always `DataClass.extend(...)`. `class X extends DataClass`
- * is intentionally not supported.
- *
- * Derived classes should use `declare` for data properties to provide typing
- * without creating own runtime initializers.
  *
  * @example
  *
@@ -89,27 +94,25 @@ export class DataClass implements ShapeCarrier<{}> {
     }[keyof ShapeOf<This>]
   >
   entries(): Array<[PropertyKey, unknown]> {
-    {
-      return this.keys().reduce<Array<[PropertyKey, unknown]>>((acc, key) => {
-        if (hasOwn(this, key)) acc.push([key, this[key]])
-        return acc
-      }, [])
-    }
+    return this.keys().reduce<Array<[PropertyKey, unknown]>>((acc, key) => {
+      if (hasOwn(this, key)) acc.push([key, this[key]])
+      return acc
+    }, [])
   }
 
   /**
    * Project the declared data fields on `this` into a fresh POJO.
    *
    * This is primarily useful when consumers want to spread data from class
-   * instances without tripping class-spread linting rules. When keys are
-   * provided, only those declared keys are projected.
+   * instances without tripping class-spread linting rules.
    */
   pick(): Simplify<Mutable<Pick<this, keyof ShapeOf<this>>>>
+  /** Project the provided keys of `this` into a fresh POJO. */
   pick<const K extends Array<keyof ShapeOf<this>>>(
     ...keys: K
   ): Simplify<Mutable<Pick<this, K[number]>>>
-  pick(...picked: Array<keyof ShapeOf<this>>): Record<PropertyKey, unknown> {
-    return (picked.length ? picked : this.keys()).reduce<
+  pick(...keys: Array<keyof ShapeOf<this>>): Record<PropertyKey, unknown> {
+    return (keys.length ? keys : this.keys()).reduce<
       Record<PropertyKey, unknown>
     >((acc, key) => {
       if (hasOwn(this, key)) acc[key] = this[key]
@@ -137,9 +140,9 @@ export class DataClass implements ShapeCarrier<{}> {
    * Notes:
    *
    * - Uses `Object.is` to check for structural equality
-   * - If `that` has excess properties, those are not checked
    * - If a value is itself an instance of `DataClass`, will defer to that
-   *   instance's `equals` method to check deeper
+   *   instance's `equals` method to check deeper (structural only, does not
+   *   compare prototypes)
    */
   equals(that: this): boolean {
     if (!DataClass.isDataClass(that)) return false
@@ -153,7 +156,7 @@ export class DataClass implements ShapeCarrier<{}> {
 
       // Check equality
       const thisValue = this[key]
-      const thatValue = (that as this)[key]
+      const thatValue = that[key]
       return (
         Object.is(thisValue, thatValue) ||
         (DataClass.isDataClass(thisValue) &&
@@ -203,7 +206,7 @@ export class DataClass implements ShapeCarrier<{}> {
         // Same shape
         if (
           thisValueKeys.length === thatValueKeys.length &&
-          thisValueKeys.every((key, i) => key === thatValueKeys[i])
+          thisValueKeys.every((nestedKey, i) => nestedKey === thatValueKeys[i])
         ) {
           // If not equal, add deep comparison
           if (!thisValue.equals(thatValue)) {
@@ -237,56 +240,56 @@ export class DataClass implements ShapeCarrier<{}> {
    * Each call widens the declared shape while preserving inherited members.
    */
   static extend<
-    This extends { new (...args: any): any },
-    Instance extends DataClass,
-    const K extends Array<PropertyKey> = [],
+    This extends { new (...args: Array<any>): DataClass },
+    const K extends Array<PropertyKey>,
   >(
-    this: This & {
-      new (
-        props: Readonly<Pick<Instance, keyof ShapeOf<Instance>>>, // Require that the first constructor param has not been changed
-        ...rest: Array<any>
-      ): Instance
-    },
+    this: This,
     ...declared: K
   ): {
-    new <Self extends Instance & Partial<Record<K[number], unknown>>>(
-      props: Simplify<
-        Readonly<
-          // Pick self
-          Pick<Self, Extract<keyof ShapeOf<Instance> | K[number], keyof Self>> &
-            // Declared-but-untyped keys become required + `never` as an error
-            Record<
-              Exclude<keyof ShapeOf<Instance> | K[number], keyof Self>,
-              never
-            >
-        >
+    new <
+      Props extends Partial<
+        Record<K[number] | keyof ShapeOf<InstanceType<This>>, unknown>
       >,
-      ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
-        Rest
-      : []
-    ): ShapeCarrier<Pick<Self, keyof ShapeOf<Instance> | K[number]>> & Instance
+    >(
+      props: Simplify<
+        PickOrNever<Props, K[number], keyof ShapeOf<InstanceType<This>>> &
+          // Intersect base props if they exist
+          (ConstructorParameters<This>[0] extends object ?
+            ConstructorParameters<This>[0]
+          : {})
+      >,
+      ...rest: Tail<ConstructorParameters<This>>
+    ): PickOrNever<Props, K[number], keyof ShapeOf<InstanceType<This>>> &
+      ShapeCarrier<Pick<Props, K[number] | keyof ShapeOf<InstanceType<This>>>> &
+      InstanceType<This>
   } & This {
-    return class<
-      Self extends Instance & Partial<Record<K[number], unknown>>,
-    > extends this {
-      constructor(
-        props: Readonly<Pick<Self, keyof ShapeOf<Instance> | K[number]>>,
-        ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
-          Rest
-        : []
-      ) {
-        super(props, ...rest) // Defer to super for base key assignment and rest props
-        // Assign declared props
+    /** All keys from base + declared, deduped. */
+    let deduped: Array<PropertyKey> | undefined
+
+    const Derived = class extends this {
+      constructor(...args: Array<any>) {
+        super(...args) // Defer to super for base key assignment and rest props
+        const props = args[0] as this
         for (let i = 0; i < declared.length; i += 1) {
           const key = declared[i] as keyof this
-          if (hasOwn(props, key)) this[key] = props[key] as never
+          if (hasOwn(props, key)) this[key] = props[key]
         }
       }
 
-      keys() {
-        return super.keys().concat(declared)
+      override keys<This extends DataClass>(
+        this: This,
+      ): Array<keyof ShapeOf<This>> {
+        if (!deduped) {
+          deduped = Array.from(
+            new Set((super.keys() as Array<PropertyKey>).concat(declared)),
+          )
+        }
+
+        return deduped.slice() as any
       }
     }
+
+    return Derived as any
   }
 }
 
