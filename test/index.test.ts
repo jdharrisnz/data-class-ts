@@ -66,13 +66,6 @@ describe("DataClass runtime behavior", () => {
     })
   })
 
-  describe("Shape", () => {
-    it("marker on prototype merges inherited and new declarations", () => {
-      expect(Base.prototype[DataClass.Shape]).toEqual({ id: null })
-      expect(Child.prototype[DataClass.Shape]).toEqual({ id: null, name: null })
-    })
-  })
-
   describe("isDataClass()", () => {
     it("detects DataClass instances and rejects plain values", () => {
       expect(DataClass.isDataClass(new User({ id: "u_1" }))).toBe(true)

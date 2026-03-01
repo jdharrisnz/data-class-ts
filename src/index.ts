@@ -6,18 +6,26 @@ const hasOwn = <A extends PropertyKey>(
 
 const ns = "~data-class-ts/"
 const Brand = `${ns}Brand`
-const Shape = `${ns}Shape`
-type Shape = typeof Shape
+declare const DataClassShape: unique symbol
+/**
+ * Type of the key used to store the declared data-shape marker on each
+ * `DataClass` instance.
+ *
+ * This is part of the public API so advanced consumers can use it for
+ * type-level transforms (for example `Pick`/`Omit` against the shape).
+ */
+export type DataClassShape = typeof DataClassShape
 
 /**
- * Carries a type-level representation of which data fields are declared.
- *
- * The runtime value at `Shape` is a lightweight marker object used for
- * discovery (`pick`) and for preserving field optionality through extension.
+ * Carries a type-level representation of which data fields are declared and
+ * their optionality. The value itself is optional and never present.
  */
 export interface ShapeCarrier<Source extends object> {
-  readonly [Shape]: { readonly [K in keyof Source]: null }
+  readonly [DataClassShape]?: { readonly [K in keyof Source]: null }
 }
+
+/** Extract the shape of a `DataClass`. */
+export type ShapeOf<A extends DataClass> = NonNullable<A[DataClassShape]>
 
 type Simplify<A extends object> =
   { [K in keyof A]: A[K] } extends infer B extends A ? B : never
@@ -25,7 +33,7 @@ type Simplify<A extends object> =
 type Mutable<A extends object> = { -readonly [K in keyof A]: A[K] }
 
 type Diff<A extends DataClass> = Simplify<{
-  -readonly [K in keyof A[Shape]]?: A[K] extends DataClass ? Diff<A[K]>
+  -readonly [K in keyof ShapeOf<A>]?: A[K] extends DataClass ? Diff<A[K]>
   : { self: A[K]; that: A[K] }
 }>
 
@@ -56,14 +64,15 @@ type Diff<A extends DataClass> = Simplify<{
  */
 export class DataClass implements ShapeCarrier<{}> {
   declare private readonly [Brand]: typeof Brand
-  declare readonly [Shape]: {}
+
+  declare readonly [DataClassShape]?: {}
 
   /**
    * Get an array of declared keys for this instance. All keys will be present,
    * whether the instance's property is optional or not.
    */
-  keys<This extends DataClass>(this: This): Array<keyof This[Shape]> {
-    return Reflect.ownKeys(this[Shape]) as any
+  keys<This extends DataClass>(this: This): Array<keyof ShapeOf<This>> {
+    return []
   }
 
   /**
@@ -76,13 +85,16 @@ export class DataClass implements ShapeCarrier<{}> {
     this: This,
   ): Array<
     {
-      [K in keyof This[Shape]]-?: [K, Required<Pick<This, K>>[K]]
-    }[keyof This[Shape]]
-  > {
-    return this.keys().reduce((acc, key) => {
-      if (hasOwn(this, key)) acc.push([key, this[key]] as never)
-      return acc
-    }, [])
+      [K in keyof ShapeOf<This>]-?: [K, Required<Pick<This, K>>[K]]
+    }[keyof ShapeOf<This>]
+  >
+  entries(): Array<[PropertyKey, unknown]> {
+    {
+      return this.keys().reduce<Array<[PropertyKey, unknown]>>((acc, key) => {
+        if (hasOwn(this, key)) acc.push([key, this[key]])
+        return acc
+      }, [])
+    }
   }
 
   /**
@@ -92,18 +104,17 @@ export class DataClass implements ShapeCarrier<{}> {
    * instances without tripping class-spread linting rules. When keys are
    * provided, only those declared keys are projected.
    */
-  pick(): Simplify<Mutable<Pick<this, keyof this[Shape]>>>
-  pick<const K extends Array<keyof this[Shape]>>(
+  pick(): Simplify<Mutable<Pick<this, keyof ShapeOf<this>>>>
+  pick<const K extends Array<keyof ShapeOf<this>>>(
     ...keys: K
   ): Simplify<Mutable<Pick<this, K[number]>>>
-  pick(...picked: Array<keyof this[Shape]>) {
-    return (picked.length ? picked : this.keys()).reduce(
-      (acc: Record<PropertyKey, unknown>, key) => {
-        if (hasOwn(this, key)) acc[key] = this[key]
-        return acc
-      },
-      {},
-    )
+  pick(...picked: Array<keyof ShapeOf<this>>): Record<PropertyKey, unknown> {
+    return (picked.length ? picked : this.keys()).reduce<
+      Record<PropertyKey, unknown>
+    >((acc, key) => {
+      if (hasOwn(this, key)) acc[key] = this[key]
+      return acc
+    }, {})
   }
 
   /**
@@ -111,9 +122,9 @@ export class DataClass implements ShapeCarrier<{}> {
    *
    * Optional keys that are absent remain absent in the returned object.
    */
-  omit<const K extends Array<keyof this[Shape]>>(
+  omit<const K extends Array<keyof ShapeOf<this>>>(
     ...keys: K
-  ): Simplify<Mutable<Pick<this, Exclude<keyof this[Shape], K[number]>>>> {
+  ): Simplify<Mutable<Pick<this, Exclude<keyof ShapeOf<this>, K[number]>>>> {
     const exclude = new Set(keys)
     const include = this.keys().filter((key) => !exclude.has(key))
     return this.pick(...include)
@@ -206,20 +217,12 @@ export class DataClass implements ShapeCarrier<{}> {
       // Not equal and not deeply comparable, add comparison
       acc[key] = { self: thisValue, that: thatValue }
       return acc
-    }, {}) as any
+    }, {}) as Diff<this>
   }
 
   toJSON() {
     return this.pick()
   }
-
-  /**
-   * Key used to store the declared data-shape marker on a class prototype.
-   *
-   * This is part of the public API so advanced consumers can use it for
-   * type-level transforms (for example `Pick`/`Omit` against the shape).
-   */
-  static readonly Shape = Shape
 
   static isDataClass(this: void, input: unknown): input is DataClass {
     return !!input && (input as Record<string, unknown>)[Brand] === Brand
@@ -240,7 +243,7 @@ export class DataClass implements ShapeCarrier<{}> {
   >(
     this: This & {
       new (
-        props: Readonly<Pick<Instance, keyof Instance[Shape]>>, // Require that the first constructor param has not been changed
+        props: Readonly<Pick<Instance, keyof ShapeOf<Instance>>>, // Require that the first constructor param has not been changed
         ...rest: Array<any>
       ): Instance
     },
@@ -250,10 +253,10 @@ export class DataClass implements ShapeCarrier<{}> {
       props: Simplify<
         Readonly<
           // Pick self
-          Pick<Self, Extract<keyof Instance[Shape] | K[number], keyof Self>> &
+          Pick<Self, Extract<keyof ShapeOf<Instance> | K[number], keyof Self>> &
             // Declared-but-untyped keys become required + `never` as an error
             Record<
-              Exclude<keyof Instance[Shape] | K[number], keyof Self>,
+              Exclude<keyof ShapeOf<Instance> | K[number], keyof Self>,
               never
             >
         >
@@ -261,18 +264,18 @@ export class DataClass implements ShapeCarrier<{}> {
       ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
         Rest
       : []
-    ): ShapeCarrier<Pick<Self, keyof Instance[Shape] | K[number]>> & Instance
+    ): ShapeCarrier<Pick<Self, keyof ShapeOf<Instance> | K[number]>> & Instance
   } & This {
-    const Derived = class<
+    return class<
       Self extends Instance & Partial<Record<K[number], unknown>>,
     > extends this {
       constructor(
-        props: Readonly<Pick<Self, keyof Instance[Shape] | K[number]>>,
+        props: Readonly<Pick<Self, keyof ShapeOf<Instance> | K[number]>>,
         ...rest: ConstructorParameters<This> extends [unknown, ...infer Rest] ?
           Rest
         : []
       ) {
-        super(props as never, ...rest) // Defer to super for base key assignment and rest props
+        super(props, ...rest) // Defer to super for base key assignment and rest props
         // Assign declared props
         for (let i = 0; i < declared.length; i += 1) {
           const key = declared[i] as keyof this
@@ -280,25 +283,12 @@ export class DataClass implements ShapeCarrier<{}> {
         }
       }
 
-      declare readonly [Shape]: {
-        readonly [x in keyof Instance[Shape] | K[number]]: null
+      keys() {
+        return super.keys().concat(declared)
       }
     }
-
-    // @ts-expect-error Readonly assignment
-    Derived.prototype[Shape] = declared.reduce<Record<PropertyKey, null>>(
-      (acc, cur) => {
-        acc[cur] = null
-        return acc
-      },
-      Object.assign({}, (this.prototype as Instance)[Shape]), // Clone superclass shape before mutating
-    )
-
-    return Derived
   }
 }
 
-Object.assign(DataClass.prototype, {
-  [Brand]: Brand,
-  [Shape]: {},
-})
+// @ts-expect-error Readonly assignment
+DataClass.prototype[Brand] = Brand

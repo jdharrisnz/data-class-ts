@@ -9,7 +9,7 @@ Immutable-first data classes for TypeScript.
 3. Methods to transform that data
 
 ...in one place, while encouraging immutable workflows. Zero dependencies,
-1.39kb minified.
+1.25kB minified.
 
 ## Why this exists
 
@@ -52,10 +52,14 @@ const user = new User({ id: "u_1" })
 
 Defines declared data keys and returns a constructor base to extend from.
 
-### `DataClass.Shape`
+### `DataClassShape` (type export)
 
-Static key for the declared shape marker on prototypes. Useful for advanced
-type-level transforms against declared fields.
+Type-only unique symbol key for declared-shape metadata. It exists for
+type-level transforms and is intentionally not present at runtime.
+
+### `ShapeOf<T>` (type export)
+
+Extracts the declared shape marker object for a `DataClass` type.
 
 ### `DataClass.isDataClass(value)`
 

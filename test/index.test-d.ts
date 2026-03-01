@@ -1,7 +1,7 @@
 import { assertType, expectTypeOf, test } from "vitest"
 
 import { DataClass } from "../src/index.js"
-import type { ShapeCarrier } from "../src/index.js"
+import type { ShapeCarrier, ShapeOf } from "../src/index.js"
 import {
   Base,
   MissingTypedField,
@@ -128,10 +128,12 @@ test("ShapeCarrier remains assignable for advanced consumers", () => {
   assertType<ShapeCarrier<{ id: string }>>(user)
 })
 
-test("DataClass.Shape is usable for advanced shape access", () => {
+test("DataClassShape is usable for advanced shape access", () => {
   const user = new User({ id: "u_1" })
+  type UserShape = ShapeOf<typeof user>
+  const shape: UserShape = {} as any
 
-  assertType<{ readonly id: null; readonly name?: null }>(user[DataClass.Shape])
+  assertType<{ readonly id: null; readonly name?: null }>(shape)
 })
 
 test("DataClass.isDataClass narrows unknown to DataClass", () => {
@@ -167,7 +169,7 @@ test("omit(...keys) supports symbol keys in types", () => {
   const token = Symbol("token")
 
   class WithSymbol extends DataClass.extend(token, "id")<WithSymbol> {
-    declare id: string
+    declare id: string;
     declare [token]: number
   }
 
@@ -206,7 +208,10 @@ test("diff() nests for DataClass properties", () => {
     declare city: string
     declare country: string
   }
-  class UserWithAddress extends DataClass.extend("id", "address")<UserWithAddress> {
+  class UserWithAddress extends DataClass.extend(
+    "id",
+    "address",
+  )<UserWithAddress> {
     declare id: string
     declare address: Address
   }
