@@ -54,10 +54,10 @@ type Diff<A extends DataClass> = Simplify<{
  * @example
  *
  * ```ts
- * class User extends DataClass.extend("id", "name")<User> {
- *   declare readonly id: string
- *   declare readonly name?: string
- *
+ * class User extends DataClass.extend("id", "name")<{
+ *   id: string
+ *   name: string
+ * }> {
  *   rename(name: string): User {
  *     return new User({ ...this.pick(), name })
  *   }
@@ -235,7 +235,7 @@ export class DataClass implements ShapeCarrier<{}> {
    * Create a derived data-class constructor with additional declared fields.
    *
    * Use this as the only class entrypoint: `class User extends
-   * DataClass.extend("id")<User> { ... }`.
+   * DataClass.extend("id")<{ id: string }> { ... }`.
    *
    * Each call widens the declared shape while preserving inherited members.
    */
