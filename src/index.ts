@@ -43,10 +43,15 @@ type Tail<A extends Array<unknown>> =
 
 type Mutable<A extends object> = { -readonly [K in keyof A]: A[K] }
 
-type Diff<A extends DataClass> = Simplify<{
-  -readonly [K in keyof ShapeOf<A>]?: A[K] extends DataClass ? Diff<A[K]>
+type Diff<A extends DataClass> = {
+  -readonly [K in keyof ShapeOf<A>]?: A[K] extends DataClass ?
+    Simplify<Diff<A[K]>>
   : { self: A[K]; that: A[K] }
-}>
+}
+
+interface SimpleDiff {
+  [x: PropertyKey]: { self: unknown; that: unknown } | SimpleDiff
+}
 
 /**
  * Base class for immutable data classes.
@@ -176,10 +181,8 @@ export class DataClass implements ShapeCarrier<{}> {
    * Optional keys preserve presence semantics: an absent key and a present key
    * (even if `undefined`) are treated as different.
    */
-  diff(that: this): Diff<this> {
-    interface SimpleDiff {
-      [x: PropertyKey]: { self: unknown; that: unknown } | SimpleDiff
-    }
+  diff(that: this): Simplify<Diff<this>>
+  diff(that: this): Record<PropertyKey, unknown> {
     return this.keys().reduce<SimpleDiff>((acc, key) => {
       const isThisPresent = hasOwn(this, key)
       const isThatPresent = hasOwn(that, key)
@@ -220,7 +223,7 @@ export class DataClass implements ShapeCarrier<{}> {
       // Not equal and not deeply comparable, add comparison
       acc[key] = { self: thisValue, that: thatValue }
       return acc
-    }, {}) as Diff<this>
+    }, {})
   }
 
   toJSON() {
@@ -263,10 +266,7 @@ export class DataClass implements ShapeCarrier<{}> {
       ShapeCarrier<Pick<Props, K[number] | keyof ShapeOf<InstanceType<This>>>> &
       InstanceType<This>
   } & This {
-    /** All keys from base + declared, deduped. */
-    let deduped: Array<PropertyKey> | undefined
-
-    const Derived = class extends this {
+    return class extends this {
       constructor(...args: Array<any>) {
         super(...args) // Defer to super for base key assignment and rest props
         const props = args[0] as this
@@ -278,20 +278,27 @@ export class DataClass implements ShapeCarrier<{}> {
 
       override keys<This extends DataClass>(
         this: This,
-      ): Array<keyof ShapeOf<This>> {
-        if (!deduped) {
-          deduped = Array.from(
-            new Set((super.keys() as Array<PropertyKey>).concat(declared)),
-          )
-        }
+      ): Array<keyof ShapeOf<This>>
+      override keys(): Array<PropertyKey> {
+        const deduped = Array.from(
+          new Set(
+            super
+              .keys<DataClass & ShapeCarrier<Record<PropertyKey, unknown>>>()
+              .concat(declared),
+          ),
+        )
 
-        return deduped.slice() as any
+        // Declared keys are constant for each prototype
+        // So it's safe to overwrite the method in this way
+        // This means we do the dedupe work only once per instance
+        Object.assign(Object.getPrototypeOf(this) as this, {
+          keys: deduped.slice.bind(deduped, undefined, undefined),
+        })
+
+        return this.keys()
       }
-    }
-
-    return Derived as any
+    } as any
   }
 }
 
-// @ts-expect-error Readonly assignment
-DataClass.prototype[Brand] = Brand
+Object.assign(DataClass.prototype, { [Brand]: Brand })
