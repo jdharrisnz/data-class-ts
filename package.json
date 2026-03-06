@@ -1,6 +1,6 @@
 {
   "name": "data-class-ts",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Immutable-first data classes with declared keys, generated constructors, and ergonomic transforms.",
   "keywords": [
     "typescript",
